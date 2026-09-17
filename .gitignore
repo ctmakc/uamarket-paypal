@@ -1,0 +1,18 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+*.db
+.env
+.venv/
+/media/
+
+# local e2e run
+.e2e.env
+e2e-artifacts/
+
+# local production rehearsal (scripts/prod_local_check.sh)
+.prod-check.env
+prod-check-artifacts/
+
+# clean-checkout runbook rehearsal
+/_rehearsal/

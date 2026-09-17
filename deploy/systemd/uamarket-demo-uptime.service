@@ -1,0 +1,7 @@
+# Copy of the installed user unit ~/.config/systemd/user/uamarket-demo-uptime.service.
+[Unit]
+Description=UA Market demo: is market.agintent.com answering (heals the tunnel and the stack on two failures in a row)
+
+[Service]
+Type=oneshot
+ExecStart=/data/projects/uamarket/scripts/demo_uptime_check.sh

@@ -1,0 +1,12 @@
+# Copy of the installed user timer ~/.config/systemd/user/uamarket-demo-uptime.timer.
+[Unit]
+Description=Check the UA Market demo every 5 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=uamarket-demo-uptime.service
+
+[Install]
+WantedBy=timers.target

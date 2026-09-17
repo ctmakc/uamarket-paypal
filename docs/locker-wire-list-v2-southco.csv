@@ -1,0 +1,49 @@
+wire_id,from,to,net,function,reference_gauge,status,verification
+V2-W001,PS1 +24V,X1.01,+24V_RAW,PSU positive to source terminal,18AWG,BENCH,verify polarity before F0/F1
+V2-W002,PS1 0V,X1.02,0V,PSU return to common terminal,18AWG,BENCH,verify polarity
+V2-W003,X1.01,F0 IN,+24V_RAW,control branch feed,18AWG,BENCH,F0 removed during dead-panel test
+V2-W004,F0 OUT,X1.03,CONTROL_24V,protected control bus,18AWG,BENCH,measure approx 24V with F0 installed
+V2-W005,X1.01,F1 IN,+24V_RAW,master latch-bus feed,18AWG,BENCH,F1 removed until lock-bus test
+V2-W006,F1 OUT,X1.04,LOCK_PRE_INTERLOCK,protected pre-K0 bus,18AWG,BENCH,no connection through S1
+V2-W007,X1.04,K0 COM,LOCK_PRE_INTERLOCK,master relay power contact input,18AWG,BENCH,verify K0 COM by datasheet
+V2-W008,K0 NO,X1.05,LOCK_24V,master relay switched latch bus,18AWG,BENCH,must be 0V with K0 dropped
+V2-W009,X1.03,IO1 +V,CONTROL_24V,power Waveshare I/O,18-22AWG,BENCH,IO stays powered gate open
+V2-W010,X1.02,IO1 GND,0V,power Waveshare return,18-22AWG,BENCH,continuity to PS1 0V
+V2-W011,X1.02,IO1 DICOM,0V,PNP/high-level digital-input common,22AWG,BENCH,DICOM must not go to +24V
+V2-W012,X1.03,IO1 DOCOM,CONTROL_24V,DO flyback/common for relay coils,22AWG,BENCH,v2 differs from v1
+V2-W013,X1.03,X2.09,CONTROL_24V,status/contact field supply,22AWG,BENCH,protected by F0
+V2-W014,X2.09,S1A COM,CONTROL_24V,inner-gate telemetry contact feed,22AWG,BENCH,identify pole A by continuity
+V2-W015,S1A SAFE return,X2.01,INNER_GATE_RETURN,gate-closed signal field return,22AWG,BENCH,open wire must produce unsafe 0
+V2-W016,X2.01,IO1 DI1,INNER_GATE_RETURN,inner gate to address 0,22AWG,BENCH,closed=1 open=0
+V2-W017,X2.09,S1B COM,CONTROL_24V,master-interlock coil contact feed,22AWG,BENCH,S1B carries only K0 coil current
+V2-W018,S1B SAFE return,K0 coil +,K0_COIL_PLUS,energize K0 only gate fully closed,22AWG,BENCH,gate open must drop K0
+V2-W019,K0 coil -,X1.02,0V,K0 coil return,22AWG,BENCH,K0 coil approx 9mA nominal
+V2-W020,X1.03,RY1 coil +,CONTROL_24V,BAY-CP command relay coil feed,22AWG,BENCH,RY1 powered from control bus
+V2-W021,RY1 coil -,IO1 DO1,RY1_COIL_SINK,Waveshare address 0 sinks RY1 coil,22AWG,BENCH,DO1 must never power latch directly
+V2-W022,X1.05,F2 IN,LOCK_24V,BAY-CP latch branch feed,18AWG,BENCH,F2 removed until actuator stage
+V2-W023,F2 OUT,X3.01,L1_POWER_PLUS,protected BAY-CP latch power,18AWG,BENCH,provisional fuse value only
+V2-W024,X3.01,L1 pin 2 red,L1_POWER_PLUS,Southco main power input,18AWG,BENCH,confirm exact harness/pinout before termination
+V2-W025,X1.02,X3.02,0V,BAY-CP latch ground source,18AWG,BENCH,common 0V
+V2-W026,X3.02,L1 pin 1 brown,L1_GND,Southco ground,18AWG,BENCH,confirm exact harness/pinout
+V2-W027,X1.05,RY1 COM,LOCK_24V,BAY-CP control-signal source,22AWG,BENCH,source disappears if K0 drops
+V2-W028,RY1 NO,X3.03,L1_CONTROL,BAY-CP control command dry-contact output,22AWG,BENCH,NO open with RY1 deenergized
+V2-W029,X3.03,L1 pin 3 orange,L1_CONTROL,Southco electronic command input,22AWG,BENCH,current family literature max input signal ~25mA
+V2-W030,X2.09,X3.04,CONTROL_24V,latch-status switch excitation,22AWG,BENCH,protected sense voltage
+V2-W031,X3.04,L1 pin 4 black,CONTROL_24V,Southco latch-switch common,22AWG,BENCH,confirm exact harness/pinout
+V2-W032,L1 pin 5 blue,X2.03,L1_LATCH_LOCKED_RETURN,latch status return candidate NO,22AWG,BENCH,continuity-test actual latch: locked must equal safe 1
+V2-W033,X2.03,IO1 DI3,L1_LATCH_LOCKED_RETURN,BAY-CP latch status address 2,22AWG,BENCH,locked=1 unlocked=0 after validation
+V2-W034,L1 pin 6 grey,X3.05,L1_SWITCH_NC_SPARE,unused alternate switch contact,22AWG,BENCH,terminate/insulate; do not leave bare
+V2-W035,X2.09,DS1 common,CONTROL_24V,BAY-CP independent door sensor feed,22AWG,BENCH,verify SD-80 actual contact orientation
+V2-W036,DS1 SAFE return,X2.02,L1_DOOR_CLOSED_RETURN,BAY-CP door-closed field return,22AWG,BENCH,wire break must equal unsafe 0
+V2-W037,X2.02,IO1 DI2,L1_DOOR_CLOSED_RETURN,BAY-CP door status address 1,22AWG,BENCH,closed=1 open=0
+V2-W038,X1.05,X3.06,LOCK_24V,protected lock-bus service test point,18-22AWG,BENCH,test point only no external load
+V2-W039,X1.03,X3.07,CONTROL_24V,protected control-bus service test point,18-22AWG,BENCH,test point only
+V2-W040,X1.02,X3.08,0V,service 0V test point,18-22AWG,BENCH,test point only
+V2-W041,X1.05,F3 IN,LOCK_24V,BAY-OTHER future latch branch,18AWG,AFTER_100_PASS,do not install/energize until BAY-CP accepted
+V2-W042,X1.05,F4 IN,LOCK_24V,BAY-OVERFLOW future latch branch,18AWG,AFTER_100_PASS,do not install/energize until BAY-CP accepted
+V2-W043,X1.03,RY2 coil +,CONTROL_24V,BAY-OTHER command relay coil feed,22AWG,AFTER_100_PASS,replicate RY1 topology
+V2-W044,RY2 coil -,IO1 DO2,RY2_COIL_SINK,BAY-OTHER software address 1,22AWG,AFTER_100_PASS,replicate RY1 topology
+V2-W045,X1.05,RY2 COM,LOCK_24V,BAY-OTHER control source,22AWG,AFTER_100_PASS,K0-controlled source
+V2-W046,X1.03,RY3 coil +,CONTROL_24V,BAY-OVERFLOW command relay coil feed,22AWG,AFTER_100_PASS,replicate RY1 topology
+V2-W047,RY3 coil -,IO1 DO3,RY3_COIL_SINK,BAY-OVERFLOW software address 2,22AWG,AFTER_100_PASS,replicate RY1 topology
+V2-W048,X1.05,RY3 COM,LOCK_24V,BAY-OVERFLOW control source,22AWG,AFTER_100_PASS,K0-controlled source

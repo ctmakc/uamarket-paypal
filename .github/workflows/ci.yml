@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: uamarket
+          POSTGRES_PASSWORD: uamarket
+          POSTGRES_DB: uamarket_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U uamarket -d uamarket_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_POSTGRES_URL: postgresql+psycopg://uamarket:uamarket@127.0.0.1:5432/uamarket_test
+      SHOPIFY_CLIENT_SECRET: ci-shopify-secret
+      EDGE_SHARED_TOKEN: ci-edge-token
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.lock
+      - name: Every setting the code reads is documented in .env.example
+        run: python tools/check_env.py
+      - name: Migrations match the models on PostgreSQL
+        env:
+          DATABASE_URL: postgresql+psycopg://uamarket:uamarket@127.0.0.1:5432/uamarket_test
+        run: |
+          alembic upgrade head
+          alembic check
+      - name: Migrations match the models on SQLite
+        env:
+          DATABASE_URL: sqlite:///./ci-alembic.db
+        run: |
+          alembic upgrade head
+          alembic check
+      - name: Run tests including PostgreSQL race gate
+        run: pytest -q
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compose file is valid with and without a .env
+        run: |
+          docker compose config -q
+          cp .env.example .env
+          docker compose config -q
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build

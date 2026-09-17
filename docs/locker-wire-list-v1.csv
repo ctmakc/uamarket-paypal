@@ -1,0 +1,48 @@
+WireID,From,To,Net/Function,ReferenceGauge,ReferenceColor,Notes
+W001,PS1 +24V,X1.01,+24V_RAW,18AWG,Red,24 VDC secondary only
+W002,PS1 0V,X1.02,0V,18AWG,Black,Common 0 V
+W003,X1.01,F0 IN,+24V_RAW,18AWG,Red,Control branch feed
+W004,F0 OUT,X1.03,CONTROL_24V,18AWG,Red,Feeds IO1 and sense contacts
+W005,X1.03,IO1 +7..36V,CONTROL_24V,18AWG,Red,IO module power
+W006,X1.02,IO1 GND,0V,18AWG,Black,IO module power return
+W007,X1.02,IO1 DICOM,INPUT_COMMON_0V,22AWG,Black,Selects PNP/high-level DI mode
+W008,X1.01,F1 IN,+24V_RAW,18AWG,Red,Lock bus main feed
+W009,F1 OUT,S1 pole B COM,LOCK_PRE_INTERLOCK,18AWG,Red,Hard interlock input
+W010,S1 pole B SAFE,X1.05,LOCK_24V,18AWG,Red,Must open when inner gate opens
+W011,X1.05,IO1 DOCOM,LOCK_24V,18AWG,Red,Flyback diode common
+W012,X1.05,F2 IN,LOCK_24V,18AWG,Red,BAY-CP branch feed
+W013,F2 OUT,X3.01,L1_LOCK_PLUS,18AWG,Red,BAY-CP lock +
+W014,X3.01,L1 lock +,L1_LOCK_PLUS,18AWG,Red,Field cable
+W015,L1 lock -,X3.02,L1_LOCK_MINUS,18AWG,Orange,Field cable
+W016,X3.02,IO1 DO1,BAY_CP_UNLOCK_SINK,18AWG,Orange,NPN open-drain sink
+W017,X1.05,F3 IN,LOCK_24V,18AWG,Red,BAY-OTHER branch feed
+W018,F3 OUT,X3.03,L2_LOCK_PLUS,18AWG,Red,BAY-OTHER lock +
+W019,X3.03,L2 lock +,L2_LOCK_PLUS,18AWG,Red,Field cable
+W020,L2 lock -,X3.04,L2_LOCK_MINUS,18AWG,Orange,Field cable
+W021,X3.04,IO1 DO2,BAY_OTHER_UNLOCK_SINK,18AWG,Orange,NPN open-drain sink
+W022,X1.05,F4 IN,LOCK_24V,18AWG,Red,BAY-OVERFLOW branch feed
+W023,F4 OUT,X3.05,L3_LOCK_PLUS,18AWG,Red,BAY-OVERFLOW lock +
+W024,X3.05,L3 lock +,L3_LOCK_PLUS,18AWG,Red,Field cable
+W025,L3 lock -,X3.06,L3_LOCK_MINUS,18AWG,Orange,Field cable
+W026,X3.06,IO1 DO3,BAY_OVERFLOW_UNLOCK_SINK,18AWG,Orange,NPN open-drain sink
+W027,X1.03,S1 pole A COM,CONTROL_24V,22AWG,White,Inner-gate telemetry feed
+W028,S1 pole A SAFE,X2.01,INNER_GATE_CLOSED,22AWG,White,Closed only when gate fully closed
+W029,X2.01,IO1 DI1,INNER_GATE_CLOSED,22AWG,White,Modbus DI address 0
+W030,X1.03,L1 door contact COM,CONTROL_24V,22AWG,White,Use contact pair closed when door closed
+W031,L1 door SAFE,X2.02,BAY_CP_DOOR_CLOSED,22AWG,White,Field return
+W032,X2.02,IO1 DI2,BAY_CP_DOOR_CLOSED,22AWG,White,Modbus DI address 1
+W033,X1.03,L1 lock contact COM,CONTROL_24V,22AWG,White,Use contact pair closed when locked
+W034,L1 lock SAFE,X2.03,BAY_CP_LOCKED,22AWG,White,Field return
+W035,X2.03,IO1 DI3,BAY_CP_LOCKED,22AWG,White,Modbus DI address 2
+W036,X1.03,L2 door contact COM,CONTROL_24V,22AWG,White,Use contact pair closed when door closed
+W037,L2 door SAFE,X2.04,BAY_OTHER_DOOR_CLOSED,22AWG,White,Field return
+W038,X2.04,IO1 DI4,BAY_OTHER_DOOR_CLOSED,22AWG,White,Modbus DI address 3
+W039,X1.03,L2 lock contact COM,CONTROL_24V,22AWG,White,Use contact pair closed when locked
+W040,L2 lock SAFE,X2.05,BAY_OTHER_LOCKED,22AWG,White,Field return
+W041,X2.05,IO1 DI5,BAY_OTHER_LOCKED,22AWG,White,Modbus DI address 4
+W042,X1.03,L3 door contact COM,CONTROL_24V,22AWG,White,Use contact pair closed when door closed
+W043,L3 door SAFE,X2.06,BAY_OVERFLOW_DOOR_CLOSED,22AWG,White,Field return
+W044,X2.06,IO1 DI6,BAY_OVERFLOW_DOOR_CLOSED,22AWG,White,Modbus DI address 5
+W045,X1.03,L3 lock contact COM,CONTROL_24V,22AWG,White,Use contact pair closed when locked
+W046,L3 lock SAFE,X2.07,BAY_OVERFLOW_LOCKED,22AWG,White,Field return
+W047,X2.07,IO1 DI7,BAY_OVERFLOW_LOCKED,22AWG,White,Modbus DI address 6

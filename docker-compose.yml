@@ -1,0 +1,129 @@
+# Local and CI stack: `cp .env.example .env && docker compose up --build`.
+#   storefront  http://localhost:${WEB_HOST_PORT:-3000}
+#   API         http://localhost:${APP_HOST_PORT:-8000}  (docs at /docs)
+#   Mailpit     http://localhost:${MAILPIT_UI_PORT:-8025}  (every email the shop sends locally)
+# Every service reads the same env file; `environment:` below only sets values that are
+# internal to this network and must not come from the file.
+
+x-env-file: &env-file
+  env_file:
+    - path: ${UAMARKET_ENV_FILE:-.env}
+      required: false
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: heritage
+      POSTGRES_USER: heritage
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-heritage}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U heritage -d heritage"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    image: uamarket-api:local
+    <<: *env-file
+    environment:
+      DATABASE_URL: postgresql+psycopg://heritage:${POSTGRES_PASSWORD:-heritage}@db:5432/heritage
+      MEDIA_ROOT: /app/media
+    volumes:
+      - media_data:/app/media
+    ports:
+      - "127.0.0.1:${APP_HOST_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  scheduler:
+    build: .
+    image: uamarket-api:local
+    command: ["python", "-m", "app.scheduler"]
+    <<: *env-file
+    environment:
+      DATABASE_URL: postgresql+psycopg://heritage:${POSTGRES_PASSWORD:-heritage}@db:5432/heritage
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: always
+
+  web:
+    build: ./web
+    <<: *env-file
+    environment:
+      API_URL: http://app:8000
+    ports:
+      - "${WEB_HOST_PORT:-3000}:3000"
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/robots.txt').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+
+  edge-daemon:
+    profiles: ["edge"]
+    build: .
+    image: uamarket-api:local
+    command: ["python", "-m", "edge.daemon"]
+    environment:
+      EDGE_WS_URL: ws://app:8000/edge/ws
+      EDGE_DEVICE_TOKEN: ${EDGE_DEVICE_TOKEN:-}
+      EDGE_SHARED_TOKEN: ${EDGE_SHARED_TOKEN:-dev-edge-token}
+      EDGE_SITE: ${EDGE_SITE:-default}
+      EDGE_DEVICE_ID: ${EDGE_DEVICE_ID:-LOCKER-PLC-01}
+      EDGE_COMMISSIONING_ENABLED: ${EDGE_COMMISSIONING_ENABLED:-false}
+      EDGE_STATE_DB: /edge-state/edge-state.db
+      LOCKER_DRIVER: ${LOCKER_DRIVER:-simulated}
+      LOCKER_MODBUS_HOST: ${LOCKER_MODBUS_HOST:-}
+      LOCKER_MODBUS_PORT: ${LOCKER_MODBUS_PORT:-502}
+      LOCKER_MODBUS_DEVICE_ID: ${LOCKER_MODBUS_DEVICE_ID:-1}
+      LOCKER_UNLOCK_PULSE_MS: ${LOCKER_UNLOCK_PULSE_MS:-1500}
+      LOCKER_UNLOCK_VERIFY_TIMEOUT_MS: ${LOCKER_UNLOCK_VERIFY_TIMEOUT_MS:-750}
+      LOCKER_MODBUS_TIMEOUT: ${LOCKER_MODBUS_TIMEOUT:-3}
+      LOCKER_SNAPSHOT_INTERVAL_SECONDS: ${LOCKER_SNAPSHOT_INTERVAL_SECONDS:-15}
+      LOCKER_MODBUS_MAP_JSON: ${LOCKER_MODBUS_MAP_JSON:-}
+    volumes:
+      - edge_state:/edge-state
+    depends_on:
+      app:
+        condition: service_healthy
+
+  edge-polling-legacy:
+    profiles: ["legacy-sim"]
+    build: .
+    image: uamarket-api:local
+    command: ["python", "scripts/edge_simulator.py"]
+    environment:
+      API_URL: http://app:8000
+      EDGE_SHARED_TOKEN: ${EDGE_SHARED_TOKEN:-dev-edge-token}
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  media_data:
+  edge_state:

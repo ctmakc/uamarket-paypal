@@ -1,0 +1,35 @@
+# UA Market public demo behind a Cloudflare Tunnel (docker-compose.tunnel.yml).
+#
+# Cloudflare terminates HTTPS and cloudflared reaches Caddy over plain HTTP on 127.0.0.1, so
+# Caddy asks for no certificate here. The visitor's address arrives in CF-Connecting-IP, which
+# Cloudflare overwrites on every request; the port is bound to 127.0.0.1, so nothing but the
+# tunnel can reach it. Everything else matches deploy/Caddyfile.
+{
+	admin off
+	auto_https off
+}
+
+http://{$SHOP_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		# Demo: never indexed. Remove this line together with WEB_INDEXABLE=true at a real launch.
+		X-Robots-Tag "noindex, nofollow"
+		-Server
+	}
+
+	handle /webhooks/stripe {
+		reverse_proxy app:8000
+	}
+
+	handle {
+		reverse_proxy web:3000 {
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Internal-Proxy-Secret {$INTERNAL_PROXY_SECRET}
+			header_up -X-Client-IP
+		}
+	}
+}

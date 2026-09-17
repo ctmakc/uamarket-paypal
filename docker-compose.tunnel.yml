@@ -1,0 +1,27 @@
+# Public demo behind a Cloudflare Tunnel, e.g. https://market.agintent.com on the workstation.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.tunnel.yml \
+#     --env-file <env> up -d --build          (scripts/demo_deploy.sh does exactly this)
+#
+# On top of the production compose:
+#   - Caddy listens on 127.0.0.1:${CADDY_HTTP_PORT} over plain HTTP; cloudflared connects there and
+#     Cloudflare serves HTTPS. Nothing is published on 80/443.
+#   - Mailpit runs inside the network and delivers nothing; its UI is on 127.0.0.1 only. The
+#     storefront says no email is sent (app/services/storefront.py notifications_config).
+#   - Every response carries X-Robots-Tag noindex (deploy/Caddyfile.tunnel).
+# Runbook: docs/DEMO-DEPLOY.md.
+
+services:
+  caddy:
+    ports: !override
+      - "127.0.0.1:${CADDY_HTTP_PORT:?set CADDY_HTTP_PORT}:80"
+    volumes: !override
+      - ./deploy/Caddyfile.tunnel:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  mailpit:
+    profiles: !reset []
+    restart: always
+    ports: !override
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"

@@ -1,0 +1,17 @@
+# Copy of the installed user unit ~/.config/systemd/user/cloudflared-uamarket-demo.service.
+# Restart=always covers all three ways the tunnel can end — a crash, a clean exit and a
+# `systemctl --user stop` typed by a script — so the public demo comes back from each of them.
+# StartLimitIntervalSec=0 keeps systemd from giving up after a burst of restarts.
+[Unit]
+Description=Cloudflared tunnel for the UA Market public demo (market.agintent.com -> 127.0.0.1:18480)
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/home/llm/.local/bin/cloudflared tunnel --no-autoupdate --config /home/llm/.cloudflared/uamarket-demo.yml run
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
