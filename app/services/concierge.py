@@ -132,14 +132,22 @@ def _tools(s: Session_) -> list[llm.Tool]:
                 found = list_products(s.db, category=cat, q=word, in_stock=in_stock or None, limit=60)["items"]
                 if found:
                     break
+        matched = list(found)
         if lo is not None:
             found = [i for i in found if (i.get("price_to_cad") or 0) >= float(lo)]
         if hi is not None:
             found = [i for i in found if (i.get("price_from_cad") or 0) <= float(hi)]
         found = found[:limit]
         _add_products_card(s, found)
-        return {"count": len(found), "items": [_compact(i, s.locale) for i in found],
-                "note": "Only these pieces match. Prices are CAD." if found else "Nothing matches. Try a broader query or another category."}
+        out = {"count": len(found), "items": [_compact(i, s.locale) for i in found],
+               "note": "Only these pieces match. Prices are CAD." if found else "Nothing matches. Try a broader query or another category."}
+        # A piece that matches the words but not the price range exists: say so, so the answer
+        # is "it costs more than your limit", never "we do not have it".
+        priced_out = [i for i in matched if i not in found][:5]
+        if priced_out and (lo is not None or hi is not None):
+            out["outside_price_range"] = [_compact(i, s.locale) for i in priced_out]
+            out["note"] += " The pieces in outside_price_range match the words but not the price range; they exist in the shop."
+        return out
 
     def get_product_tool(args: dict) -> dict:
         slug = str(args.get("slug") or "").strip()
