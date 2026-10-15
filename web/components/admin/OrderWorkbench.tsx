@@ -309,6 +309,8 @@ function NextSlab(props: {
         </form>
       </>
     );
+  } else if (kind === "await_paypal") {
+    body = (<><h2 className="adm-next__title">{o.awaitPayPal.title}</h2><p className="adm-next__lede">{o.awaitPayPal.lede}</p></>);
   } else if (kind === "await_card") {
     body = (<><h2 className="adm-next__title">{o.awaitCard.title}</h2><p className="adm-next__lede">{o.awaitCard.lede}</p></>);
   } else if (kind === "reserve") {

@@ -179,6 +179,8 @@ def next_action(order: Order, package: Package | None, missions: list[Mission]) 
     method = order.fulfillment_method or "SHIP"
     s = order.state
     if s == "AWAITING_PAYMENT":
+        if order.payment_method == "PAYPAL":
+            return {"kind": "await_paypal", "secondary": ["cancel"]}
         if order.payment_method == "STRIPE":
             return {"kind": "await_card", "secondary": ["cancel"]}
         return {"kind": "mark_paid", "secondary": ["cancel"]}

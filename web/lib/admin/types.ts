@@ -41,7 +41,7 @@ export type ExceptionRow = {
   id: string; kind: string; state: string; reference_type: string; reference_id: string; summary: string; details: string;
   created_at: string | null; resolution_note: string | null; resolved_by: string | null; resolved_at: string | null;
 };
-export type NextKind = "mark_paid" | "await_card" | "reserve" | "scan" | "pack" | "ship" | "locker" | "none";
+export type NextKind = "mark_paid" | "await_card" | "await_paypal" | "reserve" | "scan" | "pack" | "ship" | "locker" | "none";
 export type OrderDetail = OrderSummary & {
   customer: { name: string | null; email: string | null; phone: string | null; locale: string | null };
   ship_to: Record<string, string>;

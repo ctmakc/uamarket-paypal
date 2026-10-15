@@ -418,6 +418,12 @@ function paymentParts(cfg: StorefrontConfig | null, withAddress = true): Bilingu
       uk: to ? `Interac e-Transfer на ${to}` : "Interac e-Transfer",
     });
   }
+  if (methods.includes("PAYPAL"))
+    parts.push(
+      cfg?.paypal?.env === "sandbox"
+        ? { en: "PayPal (sandbox: test money, nothing real moves)", uk: "PayPal (пісочниця: тестові гроші, нічого справжнього не рухається)" }
+        : { en: "PayPal", uk: "PayPal" },
+    );
   if (methods.includes("STRIPE"))
     parts.push(
       cfg?.payment_test_mode
@@ -1300,6 +1306,17 @@ export function privacyDoc(cfg: StorefrontConfig | null, policy: ShopPolicy = sh
                     value: {
                       en: "An Interac e-Transfer carries your name and your message to us through your own bank, on Interac's terms.",
                       uk: "Interac e-Transfer передає нам ваше ім'я та повідомлення через ваш банк, на умовах Interac.",
+                    },
+                  },
+                ]
+              : []),
+            ...(methods.includes("PAYPAL")
+              ? [
+                  {
+                    label: { en: "PayPal", uk: "PayPal" },
+                    value: {
+                      en: "A PayPal payment is approved in PayPal's own window; the shop receives the order and payment ids, never your PayPal password or card.",
+                      uk: "Оплату PayPal ви підтверджуєте у власному вікні PayPal; крамниця отримує ідентифікатори замовлення й платежу, а не ваш пароль PayPal чи картку.",
                     },
                   },
                 ]

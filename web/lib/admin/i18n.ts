@@ -35,7 +35,7 @@ const en = {
     paidToday: "Paid today",
     items: (n: number) => `${n} ${n === 1 ? "item" : "items"}`,
     other: "Other problems (not tied to one order)",
-    next: { mark_paid: "Mark paid", await_card: "Waiting for card", reserve: "Reserve", scan: "Scan", pack: "Pack", ship: "Ship", locker: "Locker", none: "Done" },
+    next: { mark_paid: "Mark paid", await_card: "Waiting for card", await_paypal: "Waiting for PayPal", reserve: "Reserve", scan: "Scan", pack: "Pack", ship: "Ship", locker: "Locker", none: "Done" },
     demoNote: "Demo orders are placed while the catalogue is placeholder. No money moves.",
   },
   order: {
@@ -45,6 +45,7 @@ const en = {
     steps: ["Placed", "Paid", "Reserved", "Scanned", "Packed", "Shipped"],
     markPaid: { title: "Record the e-Transfer", lede: "Check the bank first. The reference is what the bank shows.", ref: "Reference (optional)", button: "Mark e-Transfer received" },
     awaitCard: { title: "Waiting for card payment", lede: "The order is paid automatically when the card payment arrives." },
+    awaitPayPal: { title: "Waiting for PayPal", lede: "The buyer approves in PayPal; the shop captures the payment and the order turns paid by itself." },
     reserve: { title: "Reserve the stock", lede: "Takes the items off the shelf count for this order.", button: "Reserve stock" },
     scan: {
       title: "Scan each item", lede: "Scan the barcode on each item, or type its barcode or SKU from the list below and press Enter.", placeholder: "Scan or type a barcode or SKU", button: "Check",
@@ -219,7 +220,7 @@ const uk: AdminDict = {
     paidToday: "Оплачено сьогодні",
     items: (n: number) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? "річ" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "речі" : "речей"}`,
     other: "Інші проблеми (не прив'язані до замовлення)",
-    next: { mark_paid: "Позначити оплату", await_card: "Чекаємо картку", reserve: "Зарезервувати", scan: "Сканувати", pack: "Пакувати", ship: "Відправити", locker: "Локер", none: "Готово" },
+    next: { mark_paid: "Позначити оплату", await_card: "Чекаємо картку", await_paypal: "Чекаємо PayPal", reserve: "Зарезервувати", scan: "Сканувати", pack: "Пакувати", ship: "Відправити", locker: "Локер", none: "Готово" },
     demoNote: "Демо-замовлення створюються, поки каталог демонстраційний. Гроші не рухаються.",
   },
   order: {
@@ -229,6 +230,7 @@ const uk: AdminDict = {
     steps: ["Створено", "Оплачено", "Резерв", "Скановано", "Запаковано", "Відправлено"],
     markPaid: { title: "Зарахувати e-Transfer", lede: "Спершу перевірте банк. Референс — те, що показує банк.", ref: "Референс (необов'язково)", button: "E-Transfer отримано" },
     awaitCard: { title: "Чекаємо оплату карткою", lede: "Замовлення стане оплаченим саме, щойно надійде платіж." },
+    awaitPayPal: { title: "Чекаємо PayPal", lede: "Покупець підтверджує в PayPal; крамниця зараховує платіж, і замовлення стає оплаченим саме." },
     reserve: { title: "Зарезервувати товар", lede: "Знімає речі з вільного залишку під це замовлення.", button: "Зарезервувати" },
     scan: {
       title: "Скануйте кожну річ", lede: "Скануйте штрихкод на кожній речі або введіть її штрихкод чи SKU зі списку нижче й натисніть Enter.", placeholder: "Штрихкод або SKU", button: "Перевірити",

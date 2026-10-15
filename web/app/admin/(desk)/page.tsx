@@ -13,7 +13,7 @@ const QUEUES: QueueName[] = ["awaiting_payment", "to_pack", "ready_to_ship", "sh
 type QueueResponse = { queue: QueueName; counts: Record<string, number>; items: (OrderSummary & { next?: string })[]; other_exceptions: ExceptionRow[] };
 
 function nextFor(state: string, method: string | null): keyof ReturnType<typeof adminDict>["queue"]["next"] {
-  if (state === "AWAITING_PAYMENT") return method === "STRIPE" ? "await_card" : "mark_paid";
+  if (state === "AWAITING_PAYMENT") return method === "PAYPAL" ? "await_paypal" : method === "STRIPE" ? "await_card" : "mark_paid";
   if (state === "PAID" || state === "OUT_OF_STOCK") return "reserve";
   if (state === "PICK_PLANNED" || state === "PICKING") return "scan";
   if (state === "PICK_VERIFIED") return "pack";

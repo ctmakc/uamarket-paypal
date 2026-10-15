@@ -699,6 +699,16 @@ function paymentLines(snap: GeoSnapshot, lang: Lang): string[] {
       }),
     );
   }
+  if (methods.includes("PAYPAL")) {
+    lines.push(
+      say(
+        lang,
+        cfg.paypal?.env === "sandbox"
+          ? { en: "- PayPal, in the PayPal sandbox (test money, nothing real moves).", uk: "- PayPal, у пісочниці PayPal (тестові гроші, нічого справжнього не рухається)." }
+          : { en: "- PayPal (JS SDK v6 checkout; the order is paid when PayPal confirms the capture).", uk: "- PayPal (оформлення через JS SDK v6; замовлення оплачене, щойно PayPal підтвердить платіж)." },
+      ),
+    );
+  }
   if (methods.includes("STRIPE")) {
     lines.push(
       say(
