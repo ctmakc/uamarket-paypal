@@ -5,7 +5,7 @@ import os
 from fastapi import FastAPI
 
 from .db import Base, make_engine, make_session_factory
-from .api import admin, admin_catalog, admin_orders, orders, shipping, edge, storefront
+from .api import admin, admin_catalog, admin_orders, agents, orders, shipping, edge, storefront
 from .services.storefront import check_payment_configuration
 
 
@@ -40,6 +40,7 @@ def create_app(database_url: str | None = None, create_schema: bool | None = Non
     app.include_router(admin_catalog.router)
     app.include_router(admin_catalog.media_router)
     app.include_router(admin_orders.router)
+    app.include_router(agents.router)
     return app
 
 

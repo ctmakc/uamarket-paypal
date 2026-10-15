@@ -356,6 +356,8 @@ _L = {
         "pay_etransfer_after": "A person checks the transfer by hand. You get another email when it is confirmed.",
         "pay_stripe": "Pay by card here: {url}",
         "pay_stripe_nolink": "Open the order page to pay by card.",
+        "pay_paypal": "Open the order page to pay with PayPal.",
+        "pay_paypal_sandbox": "Open the order page to pay in the PayPal sandbox (test money, nothing real moves).",
         "pay_invoice": "We will write to you about payment{contact}.",
         "pay_invoice_contact": " from {email}",
         "paid_note": "Nothing is owed on this order.",
@@ -411,6 +413,8 @@ _L = {
         "pay_etransfer_after": "Переказ звіряє людина. Щойно оплату підтверджено, ви отримаєте ще один лист.",
         "pay_stripe": "Оплатити карткою: {url}",
         "pay_stripe_nolink": "Відкрийте сторінку замовлення, щоб оплатити карткою.",
+        "pay_paypal": "Відкрийте сторінку замовлення, щоб оплатити через PayPal.",
+        "pay_paypal_sandbox": "Відкрийте сторінку замовлення, щоб оплатити в пісочниці PayPal (тестові гроші, нічого справжнього не рухається).",
         "pay_invoice": "Ми напишемо вам щодо оплати{contact}.",
         "pay_invoice_contact": " з адреси {email}",
         "paid_note": "За цим замовленням більше нічого сплачувати.",
@@ -461,6 +465,10 @@ def _payment_lines(view: dict, lang: str, *, contact_email: str | None) -> list[
     payment = view.get("payment") or {}
     if not payment.get("due"):
         return [_s(lang, "paid_note")]
+    if payment.get("method") == "PAYPAL":
+        rows = [_s(lang, "pay_demo")] if payment.get("demo") else []
+        rows.append(_s(lang, "pay_paypal_sandbox" if payment.get("test_mode") else "pay_paypal"))
+        return rows
     if payment.get("demo"):
         rows = [_s(lang, "pay_demo")]
         if payment.get("method") == "STRIPE" and payment.get("checkout_url"):

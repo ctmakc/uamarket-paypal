@@ -121,7 +121,7 @@ class Order(Base):
     tax_lines_json: Mapped[str] = mapped_column(Text, default="[]", server_default="[]")
     # Opaque key to the buyer's own order page (email link, cookie). Never an email address.
     access_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
-    payment_method: Mapped[str | None] = mapped_column(String(20), nullable=True)  # STRIPE | ETRANSFER | INVOICE
+    payment_method: Mapped[str | None] = mapped_column(String(20), nullable=True)  # STRIPE | PAYPAL | ETRANSFER | INVOICE
     payment_ref: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     customer_note: Mapped[str] = mapped_column(Text, default="")
@@ -135,6 +135,14 @@ class Order(Base):
     # What the buyer was told when the order was placed (payment block, status), frozen so
     # a resent "order received" email repeats it instead of describing a later state.
     placement_json: Mapped[str] = mapped_column(Text, default="{}", server_default="{}")
+    # PayPal (payment_method PAYPAL): the PayPal order this shop order is paid through, the
+    # capture that moved the money, PayPal's last word on it, and what the shop has pushed
+    # back to PayPal since (the tracking number, a refund). Ids only; no buyer data from PayPal.
+    paypal_order_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    paypal_capture_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    paypal_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    paypal_tracking_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    paypal_refund_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     lines: Mapped[list[OrderLine]] = relationship(back_populates="order", cascade="all, delete-orphan")
 
 

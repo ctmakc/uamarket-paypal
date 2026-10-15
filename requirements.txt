@@ -12,3 +12,7 @@ python-multipart>=0.0.20
 
 websockets>=13.0
 pymodbus>=3.13.1,<4
+
+# PayPal Agent Toolkit (desk agent). Installed with --no-deps (Dockerfile): only its framework-free
+# shared module is used, so the OpenAI-Agents/LangChain/CrewAI pins it declares are not needed.
+requests>=2.32

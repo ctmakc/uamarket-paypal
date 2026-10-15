@@ -750,3 +750,113 @@ ul, ol { padding: 0; list-style: none; }
 .unpublished { color: var(--thread-mustard); }
 .confirm-line { margin-top: calc(var(--st) * 2); padding-left: var(--st); border-left: 3px solid var(--thread-mustard); font-family: var(--face-mono); font-size: var(--fs-mono-sm); line-height: 24px; max-width: 62ch; overflow-wrap: anywhere; }
 @media (max-width: 719px) { .seller__row { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------- PayPal + concierge
+   The PayPal button is PayPal's own web component (its shape and colours are PayPal's mark);
+   everything around it stays in the chart: zero radius, no shadow, linen surfaces. */
+.paypal-slot { min-height: calc(var(--st) * 4); }
+.paypal-slot paypal-button { display: block; width: 100%; }
+.paypal-slot[data-disabled="true"] paypal-button { opacity: 0.55; }
+
+/* The tab that opens the drawer: an ink plate square with one red cross stitch. */
+.cg-tab {
+  position: fixed; right: var(--gutter); bottom: calc(var(--st) * 2); z-index: 30;
+  display: inline-flex; align-items: center; gap: var(--st);
+  min-height: calc(var(--st) * 4); padding-inline: calc(var(--st) * 2);
+  background: var(--ink-plate); color: var(--thread-white);
+  font-size: var(--fs-ui); font-weight: 500; line-height: 24px;
+  transition: background-color var(--t-ui) var(--ease-ui);
+}
+.cg-tab__mark { color: var(--thread-red-lit); }
+.cg-tab:hover { background: var(--thread-red); }
+.cg-tab:hover .cg-tab__mark { color: var(--thread-white); }
+.cg-tab[hidden] { display: none; }
+
+.cg {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 35;
+  width: min(100vw, calc(var(--blk) * 4)); display: grid; grid-template-rows: auto 1fr auto;
+  background: var(--linen-bleached); border-left: 1px solid var(--count-major);
+  transform: translateX(100%); visibility: hidden;
+  transition: transform var(--t-ui) var(--ease-ui), visibility 0s linear var(--t-ui);
+}
+.cg[data-open="true"] { transform: none; visibility: visible; transition: transform var(--t-ui) var(--ease-ui); }
+.cg__head { background: var(--ink-plate); color: var(--thread-white); padding: var(--st) calc(var(--st) * 2) calc(var(--st) * 1.5); }
+.cg__titlerow { display: flex; align-items: center; justify-content: space-between; gap: var(--st); min-height: calc(var(--st) * 4); }
+.cg__title { margin: 0; font-family: var(--face-display); font-weight: 600; font-size: var(--fs-h3); line-height: 24px; letter-spacing: -0.01em; }
+.cg__headtools { display: flex; align-items: center; gap: calc(var(--st) * 2); }
+.cg__link { font-size: var(--fs-ui); font-weight: 500; color: var(--muted-on-plate); }
+.cg__link:hover { color: var(--thread-white); }
+.cg__close { display: grid; place-items: center; width: calc(var(--st) * 4); height: calc(var(--st) * 4); color: var(--thread-white); }
+.cg__close:hover { color: var(--thread-red-lit); }
+.cg__limit { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 var(--st); margin-top: 4px; }
+.cg__limitinput {
+  width: calc(var(--st) * 8); min-height: calc(var(--st) * 3); padding: 0 6px;
+  background: transparent; color: var(--thread-white); border: 0; border-bottom: 1px dashed var(--count-major-on-plate);
+  font-size: var(--fs-mono);
+}
+.cg__limitinput::placeholder { color: var(--muted-on-plate); }
+.cg__limitinput:focus { outline: none; border-bottom: 2px solid var(--thread-red-lit); }
+.cg__head .muted { color: var(--muted-on-plate); }
+
+.cg__log { overflow-y: auto; overscroll-behavior: contain; padding: calc(var(--st) * 2); }
+.cg__intro { display: grid; gap: var(--st); padding-bottom: calc(var(--st) * 2); }
+.cg__intro p { margin: 0; max-width: 46ch; }
+/* A conversation is a cut list: who on the left in mono, what on the right. */
+.cg-row { display: grid; grid-template-columns: calc(var(--st) * 7) minmax(0, 1fr); gap: var(--st); padding-block: var(--st); border-top: 1px dashed var(--count-major); }
+.cg-row__who { margin: 0; color: var(--muted); }
+.cg-row--assistant .cg-row__who { color: var(--thread-red); }
+.cg-row__body { display: grid; gap: var(--st); min-width: 0; font-size: 15px; line-height: 24px; }
+.cg-row__body > p { margin: 0; }
+.cg-row--user .cg-row__body { color: var(--ink); font-weight: 500; }
+.cg-row--assistant { animation: stitch-across 480ms var(--steps-line) both; }
+.cg-list { margin: 0; padding-left: calc(var(--st) * 1.5); display: grid; gap: 4px; }
+.cg-list li::marker { content: "× "; color: var(--thread-red); font-family: var(--face-mono); }
+/* The trace: what the agent actually called, in the chart-key voice. */
+.cg-trace { display: flex; flex-wrap: wrap; gap: 0 var(--st); margin: 0; color: var(--muted); }
+.cg-trace > span + span::before { content: "·"; margin-right: var(--st); }
+.cg-trace > span[data-ok="false"] { color: var(--thread-mustard); }
+/* Thinking: a running stitch drawn eight stitches at a time. */
+.cg-thinking { margin: 0; position: relative; padding-bottom: 6px; color: var(--muted); }
+.cg-thinking::after {
+  content: ""; position: absolute; left: 0; bottom: 0; width: calc(var(--st) * 12); height: 0;
+  border-top: 2px dashed var(--thread-black); transform-origin: left; animation: cg-run 1.2s var(--steps-line) infinite;
+}
+@keyframes cg-run { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.cg-products { list-style: none; margin: 0; padding: 0; display: grid; }
+.cg-product { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: var(--st); align-items: center; padding-block: 6px; border-bottom: 1px dashed var(--count-major); }
+.cg-product img, .cg-product__blank { width: 56px; height: 56px; object-fit: cover; background: var(--linen-shade); filter: contrast(1.04) saturate(0.94); }
+.cg-product__text { display: grid; min-width: 0; }
+.cg-product__name { font-family: var(--face-display); font-weight: 600; font-size: 15px; line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cg-product__price { padding: 0 6px; transition: background-color var(--t-ui) var(--steps-knot), color var(--t-ui) var(--steps-knot); }
+.cg-product:hover .cg-product__price, .cg-product:focus-visible .cg-product__price { background: var(--ink); color: var(--thread-white); }
+.cg-card { display: grid; gap: 4px; background: var(--linen); padding: calc(var(--st) * 1.5); }
+.cg-card > p { margin: 0; }
+.cg-card__title, .cg-card__paidtitle { margin-bottom: 6px; }
+.cg-card__sum { margin-top: 6px; border-top: 1px dashed var(--count-major); padding-top: 6px; }
+.cg-card__ship { margin-top: 6px; overflow-wrap: anywhere; }
+.cg-card__terms { margin-block: var(--st) 6px; }
+.cg-card .btn { margin-top: 6px; }
+.cg-card--paid { border-left: 3px solid var(--thread-green); }
+.cg-card--paid .cg-card__paidtitle { color: var(--thread-green); }
+.cg-card--order.is-paid { border-left: 3px solid var(--thread-green); }
+.cg__error { margin-top: var(--st); }
+
+.cg__ask { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--st); align-items: end; padding: var(--st) calc(var(--st) * 2) calc(var(--st) * 2); border-top: 1px solid var(--count-major); background: var(--linen-bleached); }
+.cg__input {
+  min-height: calc(var(--st) * 5); max-height: calc(var(--st) * 12); resize: none; padding: 6px var(--st);
+  background: var(--linen); border: 0; border-bottom: 1px dashed var(--thread-black); font-size: 15px; line-height: 24px;
+}
+.cg__input:focus { outline: none; border-bottom: 2px solid var(--thread-red); }
+.cg__send { background: var(--ink); color: var(--thread-white); min-height: calc(var(--st) * 4); }
+.cg__send:hover { background: var(--thread-red); }
+
+@media (max-width: 719px) {
+  .cg { width: 100vw; border-left: 0; }
+  .cg-tab { right: var(--gutter); bottom: var(--st); padding-inline: var(--st); }
+  .cg-row { grid-template-columns: 1fr; gap: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cg, .cg[data-open="true"] { transition: none; }
+  .cg-row--assistant, .cg-thinking::after { animation: none; }
+}

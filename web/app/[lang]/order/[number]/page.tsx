@@ -4,6 +4,8 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import CancelOrder from "@/components/CancelOrder";
 import RetryPayment from "@/components/RetryPayment";
+import OrderPayPal from "@/components/OrderPayPal";
+import { tp as tpp } from "@/lib/i18n.paypal";
 import StitchMark from "@/components/StitchMark";
 import type { OrderPickup } from "@/lib/api";
 import { api, ApiError, money } from "@/lib/api";
@@ -142,8 +144,11 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
   }
   // What this page may say about email. A config the page cannot read promises nothing.
   let mail = MAIL_OFF;
+  let paypalConfig = null;
   try {
-    mail = mailNotice(await api.config());
+    const cfg = await api.config();
+    mail = mailNotice(cfg);
+    paypalConfig = cfg.paypal ?? null;
   } catch {
     mail = MAIL_OFF;
   }
@@ -202,7 +207,14 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
             <p className={`status ${o.status.key === "delayed" ? "status--warn" : o.status.key === "cancelled" ? "status--bad" : o.paid_at ? "status--ok" : "status--warn"}`} style={{ fontSize: "var(--fs-body)" }}>{statusLabel}</p>
           </div>
 
-          {o.payment.due && !cancelled && (o.demo || o.payment.demo) ? (
+          {o.payment.due && !cancelled && o.payment.method === "PAYPAL" ? (
+            <div className="plate stack--tight" style={{ borderLeft: `3px solid var(${o.demo ? "--thread-mustard" : "--thread-red"})` }} data-order-paypal-due>
+              {o.demo ? <p className="mono mono--sm">{paypalConfig?.env === "sandbox" ? tpp(lang).demoSandbox : to(lang).orderDemo}</p> : null}
+              {paypalConfig
+                ? <OrderPayPal lang={lang} number={o.order_number} orderKey={key} config={paypalConfig} amount={money(o.payment.amount_cad ?? o.totals.total_cad, lang)} />
+                : <p>{tpp(lang).failed}</p>}
+            </div>
+          ) : o.payment.due && !cancelled && (o.demo || o.payment.demo) ? (
             <div className="plate stack--tight" style={{ borderLeft: "3px solid var(--thread-mustard)" }} data-order-demo>
               <p className="h3">{d.order.payDue} · {money(o.payment.amount_cad ?? o.totals.total_cad, lang)}</p>
               <p>{to(lang).orderDemo}</p>
@@ -235,7 +247,12 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
             </div>
           ) : null}
 
-          {o.paid_at ? <p className="status status--ok">{d.order.paid} · {new Date(o.paid_at).toLocaleDateString(lang === "uk" ? "uk-UA" : "en-CA")}</p> : null}
+          {o.paid_at ? (
+            <div className="stack--tight">
+              <p className="status status--ok">{d.order.paid} · {new Date(o.paid_at).toLocaleDateString(lang === "uk" ? "uk-UA" : "en-CA")}</p>
+              {o.payment.paypal?.capture_id ? <p className="mono mono--sm muted" data-paypal-capture>{tpp(lang).orderPaidVia(o.payment.paypal.capture_id)}{o.payment.paypal.sandbox ? " · sandbox" : ""}</p> : null}
+            </div>
+          ) : null}
 
           {o.tracking ? (
             <div className="stack--tight" data-tracking>

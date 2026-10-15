@@ -143,7 +143,7 @@ class WebOrderIn(BaseModel):
     locale: str = "en"
     fulfillment_method: str  # SHIP | PICKUP
     ship_to: WebShipToIn | None = None
-    payment_method: str | None = None  # STRIPE | ETRANSFER | INVOICE (defaults to first configured)
+    payment_method: str | None = None  # PAYPAL | STRIPE | ETRANSFER | INVOICE (defaults to first configured)
     note: str | None = Field(default=None, max_length=1000)
     lines: list[WebOrderLineIn] = Field(min_length=1, max_length=30)
     # The buyer ticked "I accept the terms of sale and the privacy notice" next to Place order.
@@ -173,3 +173,7 @@ class QuoteIn(BaseModel):
 class ShipIn(BaseModel):
     carrier: str = Field(min_length=1, max_length=80)
     tracking_code: str = Field(min_length=3, max_length=180)
+
+
+class PayPalCaptureIn(BaseModel):
+    paypal_order_id: str = Field(min_length=5, max_length=64)

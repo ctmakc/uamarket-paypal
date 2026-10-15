@@ -12,6 +12,8 @@ import { tb } from "@/lib/i18n.buy";
 import { mailNotice, tm } from "@/lib/i18n.mail";
 import { to } from "@/lib/i18n.order";
 import { pickupOption } from "@/lib/i18n.pickup";
+import { tp } from "@/lib/i18n.paypal";
+import PayPalButton from "@/components/PayPalButton";
 
 type Method = "SHIP" | "PICKUP";
 type Field = "email" | "name" | "street1" | "city" | "postal" | "province" | "terms";
@@ -62,6 +64,10 @@ export default function CheckoutForm({ lang, config, shipLabel, demo }: {
   const [attempt, setAttempt] = useState(0);
   const [key] = useState(() => idempotencyKey());
   const formRef = useRef<HTMLFormElement>(null);
+  const pp = tp(lang);
+  /** The order placed for the PayPal button; a second press reuses it instead of placing another. */
+  const placed = useRef<OrderView | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const { quote } = useQuote(items, { method, province: method === "SHIP" ? province : undefined });
 
   useEffect(() => setReady(true), []);
@@ -112,8 +118,100 @@ export default function CheckoutForm({ lang, config, shipLabel, demo }: {
     return errors;
   }
 
+  function orderBody() {
+    return {
+      idempotency_key: key, email: email.trim(), name: name.trim(), phone: phone.trim() || null, locale: lang,
+      fulfillment_method: method,
+      ship_to: method === "SHIP" ? { name: name.trim(), street1: street1.trim(), street2: street2.trim() || null, city: city.trim(), province, postal_code: postal.trim(), country: "CA" } : null,
+      payment_method: payment, note: note.trim() || null, lines: items.map((i) => ({ sku: i.sku, qty: i.qty })),
+      terms_accepted: accepted,
+    };
+  }
+
+  /** PayPal button, createOrder: check the form, place the order once, open its PayPal order. */
+  async function payPalOrder(): Promise<string> {
+    setError(null);
+    setNotice(null);
+    const errors = validate();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) {
+      setAttempt((n) => n + 1);
+      focusFirst(errors);
+      throw new Error("form");
+    }
+    setBusy(true);
+    try {
+      if (!placed.current) {
+        const res = await fetch("/api/order", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(orderBody()) });
+        const body = await res.json();
+        if (!res.ok) {
+          refused(body);
+          throw new Error("order");
+        }
+        placed.current = body as OrderView;
+      }
+      const res = await fetch(`/api/order/${encodeURIComponent(placed.current.order_number)}/paypal`, { method: "POST" });
+      const body = await res.json();
+      if (!res.ok || !body?.id) {
+        setError(pp.failed);
+        setAttempt((n) => n + 1);
+        throw new Error("paypal");
+      }
+      return String(body.id);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** PayPal button, onApprove: the server captures and checks the amount, then the order page. */
+  async function payPalApproved(paypalOrderId: string) {
+    const order = placed.current;
+    if (!order) return;
+    setBusy(true);
+    setNotice(pp.capturing);
+    const res = await fetch(`/api/order/${encodeURIComponent(order.order_number)}/paypal/capture`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ paypal_order_id: paypalOrderId }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setNotice(null);
+    if (!res.ok) {
+      setBusy(false);
+      setError(body?.code === "declined" ? pp.declined : pp.failed);
+      setAttempt((n) => n + 1);
+      return;
+    }
+    bag.clear();
+    router.push(`${href(lang, `/order/${order.order_number}`)}?placed=1&paid=1`);
+  }
+
+  /** A refusal from the order endpoint, shown on the field it names or above the button. */
+  function refused(body: { code?: string; message?: string; details?: Record<string, unknown> }) {
+    const code = String(body?.code || "");
+    if (code === "email" || code === "name") {
+      const errs = { [code]: d.checkout.errors[code] } as Partial<Record<Field, string>>;
+      setFieldErrors(errs); focusFirst(errs); setAttempt((n) => n + 1);
+      return;
+    }
+    if (code === "ship_to") {
+      const errs: Partial<Record<Field, string>> = { street1: d.checkout.errors.ship_to };
+      setFieldErrors(errs); focusFirst(errs); setAttempt((n) => n + 1);
+      return;
+    }
+    if (code === "province_excluded") {
+      const message = lang === "uk" ? String(body?.details?.message_uk || body?.message) : String(body?.message);
+      const errs: Partial<Record<Field, string>> = { province: message };
+      setFieldErrors(errs); focusFirst(errs); setAttempt((n) => n + 1);
+      return;
+    }
+    const shortLines = code === "out_of_stock" ? namedLines((body?.details?.lines || body?.details?.skus || []) as ({ sku: string } | string)[]) : [];
+    const known = d.checkout.errors as Record<string, string>;
+    setError(shortLines.length ? shortLines.map((title) => o.lineShort(title)).join(" ") : known[code] || d.checkout.errors.generic);
+    setAttempt((n) => n + 1);
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (payment === "PAYPAL") return; // the PayPal button places and pays the order
     setError(null);
     const errors = validate();
     setFieldErrors(errors);
@@ -126,38 +224,12 @@ export default function CheckoutForm({ lang, config, shipLabel, demo }: {
     try {
       const res = await fetch("/api/order", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          idempotency_key: key, email: email.trim(), name: name.trim(), phone: phone.trim() || null, locale: lang,
-          fulfillment_method: method,
-          ship_to: method === "SHIP" ? { name: name.trim(), street1: street1.trim(), street2: street2.trim() || null, city: city.trim(), province, postal_code: postal.trim(), country: "CA" } : null,
-          payment_method: payment, note: note.trim() || null, lines: items.map((i) => ({ sku: i.sku, qty: i.qty })),
-          terms_accepted: accepted,
-        }),
+        body: JSON.stringify(orderBody()),
       });
       const body = await res.json();
       if (!res.ok) {
         setBusy(false);
-        const code = String(body?.code || "");
-        if (code === "email" || code === "name") {
-          const errs = { [code]: d.checkout.errors[code] } as Partial<Record<Field, string>>;
-          setFieldErrors(errs); focusFirst(errs); setAttempt((n) => n + 1);
-          return;
-        }
-        if (code === "ship_to") {
-          const errs: Partial<Record<Field, string>> = { street1: d.checkout.errors.ship_to };
-          setFieldErrors(errs); focusFirst(errs); setAttempt((n) => n + 1);
-          return;
-        }
-        if (code === "province_excluded") {
-          const message = lang === "uk" ? String(body?.details?.message_uk || body?.message) : String(body?.message);
-          const errs: Partial<Record<Field, string>> = { province: message };
-          setFieldErrors(errs); focusFirst(errs); setAttempt((n) => n + 1);
-          return;
-        }
-        const shortLines = code === "out_of_stock" ? namedLines((body?.details?.lines || body?.details?.skus || []) as ({ sku: string } | string)[]) : [];
-        const known = d.checkout.errors as Record<string, string>;
-        setError(shortLines.length ? shortLines.map((title) => o.lineShort(title)).join(" ") : known[code] || d.checkout.errors.generic);
-        setAttempt((n) => n + 1);
+        refused(body);
         return;
       }
       const order = body as OrderView;
@@ -220,10 +292,11 @@ export default function CheckoutForm({ lang, config, shipLabel, demo }: {
         .filter((l) => l.status && l.status !== "ok")
         .flatMap((l) => namedLines([l]).map((title) => (l.status === "sold_out" ? o.lineSoldOut(title) : o.lineShort(title))))
     : [];
-  const payLabel = (m: string) => (m === "STRIPE" ? (config.payment_test_mode ? o.payTest : d.checkout.payStripe) : m === "ETRANSFER" ? d.checkout.payEtransfer : d.checkout.payInvoice);
+  const payLabel = (m: string) => (m === "PAYPAL" ? pp.payLabel : m === "STRIPE" ? (config.payment_test_mode ? o.payTest : d.checkout.payStripe) : m === "ETRANSFER" ? d.checkout.payEtransfer : d.checkout.payInvoice);
   // The e-Transfer and by-arrangement lines in lib/i18n.ts promise a follow-up email.
   // With email switched off the order page takes over that job, and says so.
   const paySub = (m: string) => {
+    if (m === "PAYPAL") return config.paypal?.env === "sandbox" ? pp.paySubSandbox : pp.paySub;
     if (m === "STRIPE") return config.payment_test_mode ? o.payTestSub : d.checkout.payStripeSub;
     if (m === "ETRANSFER") {
       const recipient = config.etransfer_email;
@@ -345,7 +418,7 @@ export default function CheckoutForm({ lang, config, shipLabel, demo }: {
           ) : null}
           {error ? <p key={attempt} className="error" role="alert" style={{ marginTop: "var(--st)" }}>{error}</p> : null}
           {blockedReason ? <p className="error" style={{ marginTop: "var(--st)" }}>{blockedReason}</p> : null}
-          {demo ? <p id="demo-line" className="demo-line" data-demo-line>{o.demoAtCheckout}</p> : null}
+          {demo ? <p id="demo-line" className="demo-line" data-demo-line>{payment === "PAYPAL" && config.paypal?.env === "sandbox" ? pp.demoSandbox : o.demoAtCheckout}</p> : null}
           <div className="accept" style={{ marginTop: "calc(var(--st) * 2)" }}>
             <label className="accept__row" htmlFor="terms">
               <input id="terms" type="checkbox" checked={accepted} onChange={(e) => { setAccepted(e.target.checked); clearField("terms"); }} aria-invalid={Boolean(fieldErrors.terms)} aria-describedby={fieldErrors.terms ? "terms-error" : undefined} data-accept-terms />
@@ -358,9 +431,32 @@ export default function CheckoutForm({ lang, config, shipLabel, demo }: {
             </label>
             <FieldError field="terms" />
           </div>
-          <p style={{ marginTop: "calc(var(--st) * 2)" }}>
-            <button type="submit" className="btn btn--red btn--lg btn--wide" disabled={placeDisabled} aria-describedby={demo ? "demo-line" : undefined} data-place-order>{busy ? d.checkout.placing : d.checkout.place}</button>
-          </p>
+          {notice ? <p className="mono mono--sm" role="status" style={{ marginTop: "var(--st)" }} data-paypal-notice>{notice}</p> : null}
+          {payment === "PAYPAL" && config.paypal ? (
+            <div style={{ marginTop: "calc(var(--st) * 2)" }} data-paypal-checkout>
+              <PayPalButton
+                config={config.paypal}
+                lang={lang}
+                disabled={busy || Object.keys(validate()).length > 0 || quoteShort.length > 0 || Boolean(blockedReason)}
+                onBlocked={() => {
+                  // The popup must not open on a form that cannot become an order: say what is missing instead.
+                  const errs = validate();
+                  setFieldErrors(errs);
+                  setAttempt((n) => n + 1);
+                  if (Object.keys(errs).length) focusFirst(errs); else setError(pp.needsForm);
+                }}
+                createOrder={payPalOrder}
+                onApproved={payPalApproved}
+                onCancel={() => { setBusy(false); setNotice(pp.cancelled); }}
+                onError={(m) => { setBusy(false); if (m !== "form" && m !== "order" && m !== "paypal") { setError(pp.failed); setAttempt((n) => n + 1); } }}
+                describedBy={demo ? "demo-line" : undefined}
+              />
+            </div>
+          ) : (
+            <p style={{ marginTop: "calc(var(--st) * 2)" }}>
+              <button type="submit" className="btn btn--red btn--lg btn--wide" disabled={placeDisabled} aria-describedby={demo ? "demo-line" : undefined} data-place-order>{busy ? d.checkout.placing : d.checkout.place}</button>
+            </p>
+          )}
           <p className="mono mono--sm muted" style={{ marginTop: "var(--st)" }}>{d.checkout.agree}</p>
         </div>
       </div>

@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 import "../globals.css";
 import JsonLd, { onlineStore, website } from "@/components/JsonLd";
 import DemoStrip from "@/components/DemoStrip";
+import Concierge from "@/components/Concierge";
 import PlaceholderNotice from "@/components/PlaceholderNotice";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { api } from "@/lib/api";
-import type { Collection } from "@/lib/api";
+import type { Collection, PayPalConfig } from "@/lib/api";
 import { catalogueStatus } from "@/lib/geo";
 import { taglineFor } from "@/lib/content";
 import { LANGS, isLang, t } from "@/lib/i18n";
@@ -41,10 +42,20 @@ export default async function LangLayout({ children, params }: { children: React
   if (!isLang(lang)) notFound();
   const d = t(lang);
   let contactEmail: string | null = null;
+  let paypal: PayPalConfig | null = null;
   try {
-    contactEmail = (await api.config()).contact_email;
+    const cfg = await api.config();
+    contactEmail = cfg.contact_email;
+    paypal = cfg.paypal ?? null;
   } catch {
     contactEmail = null;
+  }
+  // The concierge drawer appears only when the API has a language model to give it.
+  let concierge = false;
+  try {
+    concierge = (await api.agentStatus()).concierge;
+  } catch {
+    concierge = false;
   }
   // The footer's shop column names collections; reading them from the
   // catalogue is the only way they cannot drift from it, and it is what stopped
@@ -76,6 +87,7 @@ export default async function LangLayout({ children, params }: { children: React
             page says so, in the same words /llms.txt and /api/catalog use. */}
         {catalogueStatus() === "placeholder" ? <PlaceholderNotice lang={lang} /> : null}
         <SiteFooter lang={lang} contactEmail={contactEmail} collections={collections} />
+        <Concierge lang={lang} paypal={paypal} enabled={concierge} />
       </body>
     </html>
   );

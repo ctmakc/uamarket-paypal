@@ -1,8 +1,8 @@
 FROM python:3.12-slim
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-COPY requirements.txt requirements.lock ./
-RUN pip install --no-cache-dir -r requirements.lock
+COPY requirements.txt requirements.lock requirements-nodeps.txt ./
+RUN pip install --no-cache-dir -r requirements.lock && pip install --no-cache-dir --no-deps -r requirements-nodeps.txt
 COPY app ./app
 COPY edge ./edge
 COPY migrations ./migrations

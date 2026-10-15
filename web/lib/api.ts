@@ -106,6 +106,8 @@ export type BusinessIdentity = {
   privacy_email: string | null;
   gst_number: string | null;
 };
+export type PayPalConfig = { client_id: string; env: "sandbox" | "live"; sdk_url: string; currency: string };
+export type PayPalOpened = { id: string; status: string; approve_url: string | null };
 export type Processor = { kind: "email" | "payments" | "shipping" | "hosting"; name: string | null; data: string };
 export type StorefrontConfig = {
   currency: string;
@@ -122,7 +124,9 @@ export type StorefrontConfig = {
   tax: { configured_provinces: string[]; mode?: "unregistered" | "gst_hst_registered" | "custom"; gst_number?: string | null };
   business?: BusinessIdentity;
   processors?: Processor[];
-  payment_methods: ("STRIPE" | "ETRANSFER" | "INVOICE")[];
+  payment_methods: ("PAYPAL" | "STRIPE" | "ETRANSFER" | "INVOICE")[];
+  /** PayPal JS SDK v6 settings: the browser-safe client id, sandbox or live, and the SDK URL. */
+  paypal?: PayPalConfig | null;
   /** False while no payment method can be completed: checkout shows "not taking orders yet". */
   taking_orders?: boolean;
   /** Minutes placing an order sets its stock aside while the buyer pays. */
@@ -206,7 +210,8 @@ export type OrderView = {
   gst_number?: string | null;
   /** Returned only to the request that placed the order; the web server keeps it in a cookie. */
   access_token?: string;
-  payment: { method: string; due: boolean; demo?: boolean; test_mode?: boolean; amount_cad?: number; recipient_email?: string | null; message?: string; checkout_url?: string | null; contact_email?: string | null };
+  payment: { method: string; due: boolean; demo?: boolean; test_mode?: boolean; amount_cad?: number; recipient_email?: string | null; message?: string; checkout_url?: string | null; contact_email?: string | null;
+    paypal?: { order_id: string | null; capture_id?: string | null; status: string | null; sandbox: boolean } | null };
   /** Placed while the catalogue was demonstration data: no money should be sent. */
   demo?: boolean;
   paid_at: string | null;
@@ -372,6 +377,10 @@ export const api = {
   retryPayment: (number: string, token: string, visitor?: Visitor) => call<OrderView>(`${orderPath(number)}/pay`, { method: "POST", headers: visitorHeaders(visitor, token) }),
   testPayment: (session: string) => call<TestPaymentSession>(`/v1/payments/test/${encodeURIComponent(session)}`),
   completeTestPayment: (session: string) => call<TestPaymentSession>(`/v1/payments/test/${encodeURIComponent(session)}/complete`, { method: "POST" }),
+  paypalOpen: (number: string, token: string, visitor?: Visitor) => call<PayPalOpened>(`${orderPath(number)}/paypal`, { method: "POST", headers: visitorHeaders(visitor, token), signal: AbortSignal.timeout(30000) }),
+  paypalCapture: (number: string, token: string, paypalOrderId: string, visitor?: Visitor) => call<OrderView>(`${orderPath(number)}/paypal/capture`, { method: "POST", body: JSON.stringify({ paypal_order_id: paypalOrderId }), headers: visitorHeaders(visitor, token), signal: AbortSignal.timeout(30000) }).then(usableOrder),
+  agentStatus: () => call<{ concierge: boolean; model: string | null; paypal: boolean; paypal_env: string }>("/v1/agent/status", { revalidate: 60 }),
+  agentShop: (body: unknown, visitor?: Visitor) => call<AgentReply>("/v1/agent/shop", { method: "POST", body: JSON.stringify(body), headers: visitorHeaders(visitor), signal: AbortSignal.timeout(120000) }),
   cancelOrder: (number: string, token: string, visitor?: Visitor) => call<OrderView>(`${orderPath(number)}/cancel`, { method: "POST", headers: visitorHeaders(visitor, token) }).then(usableOrder),
 };
 
@@ -380,3 +389,12 @@ export function money(v: number | null | undefined, locale: "en" | "uk" = "en"):
   const s = n.toLocaleString(locale === "uk" ? "uk-UA" : "en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `CA$ ${s}`;
 }
+
+/** What the shopping concierge sends back for one turn (app/services/concierge.py). */
+export type AgentLine = { sku: string; qty: number; title: string | null; title_uk: string | null; label: string | null; label_uk: string | null; maker: string | null; maker_uk: string | null; unit_price_cad: number | null; image_url: string | null; slug: string | null };
+export type AgentCard =
+  | { type: "products"; items: { slug: string; title: string; title_uk: string | null; maker: string | null; maker_uk: string | null; price_from_cad: number; price_to_cad: number; image_url: string | null; in_stock: boolean; origin: "HANDMADE_UA" | "MADE_UA" | "DESIGNED_UA"; origin_label: string; origin_label_uk: string }[] }
+  | { type: "bag"; lines: AgentLine[]; subtotal_cad: number; shipping_cad: number; free_over_cad: number; budget_cad: number | null; note: string }
+  | { type: "checkout"; payment_method: "PAYPAL"; sandbox: boolean; demo: boolean; lines: AgentLine[]; totals: { subtotal_cad: number; shipping_cad: number; tax_cad: number; tax_rate: number | null; tax_lines?: TaxLine[]; total_cad: number }; contact: { email: string; name: string; phone: string | null }; ship_to: Record<string, string | null> }
+  | { type: "order"; order_number: string; status: { key: string; label: string; label_uk: string }; paid_at: string | null; total_cad: number };
+export type AgentReply = { reply: string; cards: AgentCard[]; trace: { tool: string; args: Record<string, unknown>; ok: boolean }[]; budget_cad: number | null; model: string; sandbox: boolean };

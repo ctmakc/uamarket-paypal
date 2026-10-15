@@ -22,7 +22,7 @@ from ..models import (
     ExceptionRecord, Mission, Order, OrderLine, OrderNote, OutboxMessage, Package, Product, ProductImage,
     Reservation, ShipmentRecord, Variant, now_utc,
 )
-from ..services import mailer
+from ..services import mailer, paypal
 from ..services.catalog import image_dict
 from ..services.inventory import InventoryError, release
 from ..services.orders import OrderError, confirm_mission, create_package, open_exception, reserve_order
@@ -280,7 +280,12 @@ def order_detail(db: Session, order: Order) -> dict:
         "totals": {"subtotal_cad": order.subtotal_cad, "shipping_cad": order.shipping_cad, "tax_cad": order.tax_cad,
                    "tax_rate": order.tax_rate, "total_cad": round(float(order.gross_amount_cad or 0), 2)},
         "payment": {"method": order.payment_method, "reference": order.payment_ref if not (order.payment_ref or "").startswith("http") else None,
-                    "paid_at": _iso(order.paid_at), "hold_expires_at": _iso(order.hold_expires_at)},
+                    "paid_at": _iso(order.paid_at), "hold_expires_at": _iso(order.hold_expires_at),
+                    "paypal": {"order_id": order.paypal_order_id, "capture_id": order.paypal_capture_id,
+                               "status": order.paypal_status, "tracking_id": order.paypal_tracking_id,
+                               "refund_id": order.paypal_refund_id, "sandbox": paypal.sandbox(),
+                               "refundable": bool(order.state == "CANCELLED" and order.paypal_capture_id and not order.paypal_refund_id)}
+                    if order.payment_method == "PAYPAL" else None},
         "lines": lines,
         "package": {"id": package.id, "state": package.state, "weight_g": package.weight_g} if package else None,
         "estimated_weight_g": estimated or None,
@@ -538,3 +543,71 @@ def lockers(db: Session = Depends(get_db)):
         })
     devices = [{"id": d.id, "kind": d.kind, "state": d.state, "last_seen_at": _iso(d.last_seen_at)} for d in db.scalars(select(Device).order_by(Device.id))]
     return {"pickup_configured": bool(pickup_address()), "bays": out, "devices": devices}
+
+
+@router.get("/orders/{order_id}/paypal")
+def order_paypal_view(order_id: str, db: Session = Depends(get_db)):
+    """PayPal's own record of this order, read live (status, capture, payer country)."""
+    order = _order(db, order_id)
+    if order.payment_method != "PAYPAL" or not order.paypal_order_id:
+        raise HTTPException(404, {"code": "not_paypal", "message": "This order was not paid through PayPal"})
+    try:
+        return paypal.refresh(db, order)
+    except paypal.PayPalError as exc:
+        raise HTTPException(502, {"code": exc.code, "message": str(exc)})
+
+
+class RefundIn(BaseModel):
+    note: str | None = Field(default=None, max_length=255)
+
+
+@router.post("/orders/{order_id}/paypal/refund")
+def order_paypal_refund(order_id: str, inp: RefundIn, db: Session = Depends(get_db), actor: str = Depends(require_operator)):
+    """Give the money back through PayPal for a cancelled order, and close its REFUND_DUE problem.
+
+    Only a cancelled order is refunded here: an order that is still going out is not
+    "half refunded" by a stray click.
+    """
+    order = _order(db, order_id)
+    if order.state != "CANCELLED":
+        raise HTTPException(409, {"code": "state", "message": "Cancel the order first, then refund it"})
+    try:
+        result = paypal.refund(db, order, note=inp.note)
+    except paypal.PayPalError as exc:
+        db.rollback()
+        raise HTTPException(502, {"code": exc.code, "message": str(exc), **({"details": exc.details} if exc.details else {})})
+    amount = round(float(order.gross_amount_cad or 0), 2)
+    for e in db.scalars(select(ExceptionRecord).where(ExceptionRecord.kind == "REFUND_DUE", ExceptionRecord.reference_id == order.id,
+                                                      ExceptionRecord.state == "OPEN")):
+        e.state = "RESOLVED"
+        e.resolution_note = f"Refunded CA$ {amount:.2f} through PayPal, refund {result.get('id')}"
+        e.resolved_by = actor
+        e.resolved_at = now_utc()
+    db.add(OrderNote(order_id=order.id, kind="NOTE", author=actor,
+                     body=f"Refunded CA$ {amount:.2f} through PayPal (refund {result.get('id')}, {result.get('status')})."))
+    db.commit()
+    return order_detail(db, order)
+
+
+@router.post("/orders/{order_id}/paypal/tracking")
+def order_paypal_tracking(order_id: str, db: Session = Depends(get_db), actor: str = Depends(require_operator)):
+    """Send a shipped order's carrier and tracking number to PayPal (when the automatic push failed)."""
+    order = _order(db, order_id)
+    package = _package(db, order)
+    shipment = db.scalar(select(ShipmentRecord).where(ShipmentRecord.package_id == package.id)) if package else None
+    if order.state != "HANDOFF_COMPLETE" or not shipment or not shipment.tracking_code:
+        raise HTTPException(409, {"code": "state", "message": "Ship the order with a tracking number first"})
+    try:
+        tracker = paypal.push_tracking(db, order, carrier=shipment.carrier or "Other", tracking_number=shipment.tracking_code)
+    except paypal.PayPalError as exc:
+        db.rollback()
+        raise HTTPException(502, {"code": exc.code, "message": str(exc), **({"details": exc.details} if exc.details else {})})
+    for e in db.scalars(select(ExceptionRecord).where(ExceptionRecord.kind == "PAYPAL_TRACKING_FAILED", ExceptionRecord.reference_id == order.id,
+                                                      ExceptionRecord.state == "OPEN")):
+        e.state = "RESOLVED"
+        e.resolution_note = f"Tracking reached PayPal ({tracker})"
+        e.resolved_by = actor
+        e.resolved_at = now_utc()
+    db.add(OrderNote(order_id=order.id, kind="NOTE", author=actor, body=f"Tracking {shipment.tracking_code} sent to PayPal ({tracker})."))
+    db.commit()
+    return order_detail(db, order)

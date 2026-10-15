@@ -2,7 +2,8 @@
 
 Honesty rules baked in here:
 - a web order is created as AWAITING_PAYMENT and becomes PAID only when money is
-  confirmed (Stripe webhook, or an operator marking an e-Transfer received);
+  confirmed (a PayPal capture or webhook, a Stripe webhook, or an operator marking an
+  e-Transfer received);
 - prices always come from the database, never from the browser;
 - totals (shipping, tax) come from configuration the owner sets, and when tax is not
   configured for a province no tax line is invented;
@@ -25,7 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import Maker, Order, OrderLine, OutboxMessage, Package, Product, ShipmentRecord, Variant, WebhookEvent, now_utc
-from . import locker, mailer
+from . import locker, mailer, paypal
 from .catalog import _availability_map, images_map, media_url
 from .inventory import InventoryError
 from .orders import hold_stock, holds_cover_order, open_exception, release_holds, reserve_order
@@ -135,6 +136,9 @@ def processors() -> list[dict]:
     if mail.enabled and not mail.local_capture:
         name = (os.getenv("MAIL_PROVIDER_NAME") or "").strip() or mail.host
         out.append({"kind": "email", "name": name, "data": "email address, name, order contents"})
+    if paypal.configured():
+        out.append({"kind": "payments", "name": "PayPal" + (" (sandbox)" if paypal.sandbox() else ""),
+                    "data": "email address, order lines and totals, delivery address"})
     if stripe_enabled():
         out.append({"kind": "payments", "name": "Stripe", "data": "email address, card payment"})
     if (os.getenv("EASYPOST_API_KEY") or "").strip():
@@ -170,6 +174,9 @@ def check_payment_configuration() -> None:
     and a docker compose run, and a deployment that is indexable or sells the real
     catalogue must never carry it.
     """
+    if paypal.configured() and paypal.sandbox() and catalogue_live():
+        # The sandbox moves pretend money: a real assortment must never be "sold" through it.
+        raise ConfigurationError("PAYPAL_ENV=sandbox is refused while SHOP_CATALOGUE_STATUS=live")
     if payment_provider() != "fake":
         return
     if _truthy(os.getenv("WEB_INDEXABLE")):
@@ -204,6 +211,8 @@ def payment_methods() -> list[str]:
     order paid. e-Transfer needs a routable recipient address.
     """
     methods = []
+    if paypal.configured():
+        methods.append("PAYPAL")
     if fake_payments_enabled() or stripe_enabled():
         methods.append("STRIPE")
     if etransfer_email():
@@ -246,6 +255,8 @@ def storefront_config() -> dict:
         "hold_minutes": order_hold_minutes(),
         # True when card payments go to the local fake provider: no money moves.
         "payment_test_mode": "STRIPE" in methods and fake_payments_enabled(),
+        # PayPal JS SDK v6 settings (browser-safe client id, sandbox or live), or None.
+        "paypal": paypal.public_config(),
         "catalogue": "live" if catalogue_live() else "placeholder",
         "etransfer_email": etransfer_email(),
         "contact_email": contact_email(),
@@ -618,9 +629,21 @@ def quote(db: Session, *, lines: list[dict], fulfillment_method: str, province: 
 def payment_instructions(order: Order) -> dict:
     cfg = storefront_config()
     if order.state != "AWAITING_PAYMENT":
-        return {"method": order.payment_method, "due": False, "demo": bool(order.is_demo)}
+        out = {"method": order.payment_method, "due": False, "demo": bool(order.is_demo)}
+        if order.payment_method == "PAYPAL" and order.paypal_capture_id:
+            out["paypal"] = {"order_id": order.paypal_order_id, "capture_id": order.paypal_capture_id,
+                             "status": order.paypal_status, "sandbox": paypal.sandbox()}
+        return out
     checkout_url = order.payment_ref if (order.payment_ref or "").startswith("http") else None
     test_session = (order.checkout_session_id or "").startswith(FAKE_SESSION_PREFIX)
+    if order.payment_method == "PAYPAL" and (not order.is_demo or paypal.sandbox()):
+        # PayPal sandbox moves no real money, so a demonstration order may be paid through it
+        # end to end; a live PayPal account never sees a demo order.
+        return {
+            "method": "PAYPAL", "due": True, "demo": bool(order.is_demo), "amount_cad": order.gross_amount_cad,
+            "paypal": {"order_id": order.paypal_order_id, "status": order.paypal_status, "sandbox": paypal.sandbox()},
+            "test_mode": paypal.sandbox(),
+        }
     if order.is_demo:
         # Demonstration goods: no recipient, no real card page. The local test card page
         # stays, because it moves no money and is how the purchase path is exercised.
@@ -1088,7 +1111,7 @@ def record_payment_mismatch(db: Session, exc: StorefrontError) -> None:
     open_exception(
         db, kind=PAYMENT_MISMATCH, reference_type="ORDER_NUMBER",
         reference_id=str(details.get("order_number") or "unknown")[:120],
-        details=json.dumps({"summary": "A card payment arrived with the wrong amount or currency. Check Stripe and refund or settle by hand.", **details}),
+        details=json.dumps({"summary": f"A payment arrived with the wrong amount or currency. Check {'PayPal' if details.get('provider') == 'PAYPAL' else 'Stripe'} and refund or settle by hand.", **details}),
     )
 
 

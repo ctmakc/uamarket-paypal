@@ -1,4 +1,4 @@
-"""Public storefront API (no API key): catalogue reads, web orders, order status, Stripe webhook."""
+"""Public storefront API (no API key): catalogue reads, web orders, order status, PayPal and Stripe webhooks."""
 from __future__ import annotations
 
 import json
@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 from ..auth import require_operator
 from ..deps import get_db
 from ..models import Order
-from ..schemas import MarkPaidIn, OrderLookupIn, QuoteIn, ShipIn, WebOrderIn
+from ..schemas import MarkPaidIn, OrderLookupIn, PayPalCaptureIn, QuoteIn, ShipIn, WebOrderIn
+from ..services import paypal
 from ..services.catalog import CatalogError, get_maker, get_product, list_categories, list_collections, list_makers, list_products
 from ..services.ratelimit import client_address, lookup_limiter, order_invalid_limiter, order_limiter
 from ..services.locker import sweep_expired_pickup_codes
@@ -287,8 +288,10 @@ def dispatch_notifications(limit: int = Query(default=50, ge=1, le=200), db: Ses
     forgotten = sweep_expired_pickup_codes(db)
     holds = release_expired_holds(db)
     db.commit()
+    tracking = paypal.sync_pending_tracking(db)
+    db.commit()
     return {"email": storefront_config()["notifications"]["email"], **counts, "pickup_codes_forgotten": forgotten,
-            "holds_released": holds}
+            "holds_released": holds, "paypal_tracking_pushed": tracking}
 
 
 @router.post("/v1/orders/{order_id}/ship", dependencies=[Depends(require_operator)])
@@ -308,9 +311,25 @@ def operator_ship(order_id: str, inp: ShipIn, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(409, str(exc))
     notify_order(db, order, "handoff")
+    paypal_tracking = _push_paypal_tracking(db, order, carrier=inp.carrier, tracking_code=inp.tracking_code)
     view = order_view(db, order)
     return {"order_id": order.id, "order_number": order.order_number, "state": order.state,
-            "package_id": package.id, "tracking": view["tracking"]}
+            "package_id": package.id, "tracking": view["tracking"], "paypal_tracking": paypal_tracking}
+
+
+def _push_paypal_tracking(db: Session, order: Order, *, carrier: str, tracking_code: str) -> dict | None:
+    """After the parcel left: give PayPal the carrier and the number (seller protection needs
+    it). Runs after the commit, so PayPal being down never undoes a shipment; the order-mail
+    timer retries what failed (paypal.sync_pending_tracking)."""
+    if order.payment_method != "PAYPAL" or not order.paypal_capture_id or order.paypal_tracking_id:
+        return None
+    try:
+        tracker = paypal.push_tracking(db, order, carrier=carrier, tracking_number=tracking_code)
+        db.commit()
+        return {"pushed": True, "tracker_id": tracker}
+    except paypal.PayPalError as exc:
+        db.rollback()
+        return {"pushed": False, "error": str(exc), "retry": "the order-mail timer retries"}
 
 
 @router.get("/v1/orders/{order_id}/mail/{kind}/preview", dependencies=[Depends(require_operator)])
@@ -371,3 +390,87 @@ def _process_stripe_webhook(db: Session, raw: bytes, signature: str, secret: str
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     raw = await request.body()
     return _process_stripe_webhook(db, raw, request.headers.get("stripe-signature", ""), os.getenv("STRIPE_WEBHOOK_SECRET", ""))
+
+
+# ------------------------------------------------------------------ PayPal
+#
+# The storefront's PayPal button (JS SDK v6) calls these two from its createOrder and
+# onApprove callbacks; the shopping agent and the MCP checkout use the same two. The buyer
+# proves the order with its access key, exactly as on the order page.
+
+@router.post("/v1/storefront/orders/{order_number}/paypal")
+def paypal_open(order_number: str, request: Request, email: str | None = None,
+                x_order_token: str | None = Header(default=None), db: Session = Depends(get_db)):
+    """Create (or reuse) the PayPal order for this unpaid PAYPAL order: {id, status, approve_url}."""
+    if not order_limiter.allow(client_address(request)):
+        raise HTTPException(429, {"code": "rate_limited", "message": "Too many attempts"})
+    try:
+        order = _customer_order(db, order_number, x_order_token, email)
+        opened = paypal.create_for(db, order)
+        db.commit()
+    except StorefrontError as exc:
+        db.rollback()
+        raise _err(exc, 404 if exc.code == "not_found" else 409)
+    except paypal.PayPalError as exc:
+        db.rollback()
+        raise HTTPException(502, {"code": exc.code, "message": str(exc)})
+    return opened
+
+
+@router.post("/v1/storefront/orders/{order_number}/paypal/capture")
+def paypal_capture(order_number: str, inp: PayPalCaptureIn, request: Request, email: str | None = None,
+                   x_order_token: str | None = Header(default=None), db: Session = Depends(get_db)):
+    """Capture the payment the buyer approved in PayPal. The order is paid only on an exact match."""
+    if not order_limiter.allow(client_address(request)):
+        raise HTTPException(429, {"code": "rate_limited", "message": "Too many attempts"})
+    try:
+        order = _customer_order(db, order_number, x_order_token, email)
+        was_paid = order.paid_at is not None
+        paypal.capture_for(db, order, inp.paypal_order_id)
+        db.commit()
+    except StorefrontError as exc:
+        db.rollback()
+        if exc.code == "amount_mismatch":
+            record_payment_mismatch(db, exc)
+            db.commit()
+        raise _err(exc, 404 if exc.code == "not_found" else (402 if exc.code == "declined" else 409))
+    except paypal.PayPalError as exc:
+        db.rollback()
+        raise HTTPException(502, {"code": exc.code, "message": str(exc)})
+    if order.paid_at is not None and not was_paid:
+        notify_order(db, order, "paid")
+    return order_view(db, order)
+
+
+@router.post("/webhooks/paypal")
+async def paypal_webhook(request: Request, db: Session = Depends(get_db)):
+    raw = await request.body()
+    try:
+        event = json.loads(raw)
+    except ValueError:
+        raise HTTPException(400, "Invalid JSON")
+    if not paypal.verify_webhook(dict(request.headers), event):
+        raise HTTPException(401, "PayPal did not confirm this delivery")
+    from ..models import WebhookEvent
+    from sqlalchemy import select
+    import hashlib
+    event_id = str(event.get("id") or "")[:160]
+    if event_id and db.scalar(select(WebhookEvent).where(WebhookEvent.source == "paypal", WebhookEvent.external_event_id == event_id)):
+        return {"ok": True, "duplicate": True}
+    try:
+        order = paypal.apply_webhook_event(db, event)
+        if event_id:
+            db.add(WebhookEvent(source="paypal", external_event_id=event_id, payload_hash=hashlib.sha256(raw).hexdigest()))
+        db.commit()
+    except StorefrontError as exc:
+        db.rollback()
+        if exc.code == "amount_mismatch":
+            record_payment_mismatch(db, exc)
+            db.commit()
+        raise _err(exc, 400 if exc.code == "amount_mismatch" else 409)
+    except paypal.PayPalError as exc:
+        db.rollback()
+        raise HTTPException(502, {"code": exc.code, "message": str(exc)})
+    if order is not None and order.paid_at is not None and event.get("event_type") in {"PAYMENT.CAPTURE.COMPLETED", "CHECKOUT.ORDER.APPROVED"}:
+        notify_order(db, order, "paid")  # one email per order and kind, however many deliveries
+    return {"ok": True, "order_number": order.order_number if order else None, "state": order.state if order else None}
