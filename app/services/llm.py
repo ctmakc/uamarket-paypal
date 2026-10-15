@@ -66,25 +66,41 @@ class Turn:
     rounds: int = 0
 
 
+def fallback_model() -> str:
+    return (os.getenv("AI_FALLBACK_MODEL") or "").strip()
+
+
+def call_timeout() -> float:
+    try:
+        return max(5.0, float(os.getenv("AI_CALL_TIMEOUT_SECONDS") or 40))
+    except ValueError:
+        return 40.0
+
+
 def _complete(messages: list[dict], tools: list[Tool], *, temperature: float) -> dict:
-    body = {"model": model(), "messages": messages, "temperature": temperature}
-    if tools:
-        body["tools"] = [t.schema() for t in tools]
+    """One completion. A hosted model sometimes stalls for minutes; each try is capped and the
+    last try goes to AI_FALLBACK_MODEL when one is set, so a buyer waits seconds, not minutes."""
     headers = {"Content-Type": "application/json"}
     if api_key():
         headers["Authorization"] = f"Bearer {api_key()}"
+    plan = [model(), model()] + ([fallback_model()] if fallback_model() else [model()])
     last = None
-    for attempt in range(3):
+    for attempt, name in enumerate(plan):
+        body = {"model": name, "messages": messages, "temperature": temperature}
+        if tools:
+            body["tools"] = [t.schema() for t in tools]
         try:
-            with httpx.Client(timeout=90, transport=TRANSPORT) as http:
+            with httpx.Client(timeout=call_timeout(), transport=TRANSPORT) as http:
                 resp = http.post(f"{base_url()}/chat/completions", json=body, headers=headers)
         except httpx.HTTPError as exc:
             last = f"{exc.__class__.__name__}"
-            time.sleep(1.5 * (attempt + 1))
+            log.warning("model %s try %d failed: %s", name, attempt + 1, last)
+            time.sleep(0.5)
             continue
         if resp.status_code in {429, 500, 502, 503, 504}:
             last = f"HTTP {resp.status_code}"
-            time.sleep(1.5 * (attempt + 1))
+            log.warning("model %s try %d failed: %s", name, attempt + 1, last)
+            time.sleep(1.0 * (attempt + 1))
             continue
         if resp.status_code >= 300:
             raise LLMError(f"The language model refused the request (HTTP {resp.status_code})")
