@@ -63,7 +63,7 @@ arrives, and it is shot to the same rules: the reason the ground is linen is tha
 are cloth, and a white studio sweep makes home-woven linen look grey.
 
 ## Ledger check
-Differs from every ledger row on ≥4 of 5 axes: flax linen ground (no row), Fixel + Fira Mono (no row), garnet thread accent (red family shared only with rows that differ on all other axes), counted-grid signature with procedural motifs (no row), steps() stitch-in motion (no row). marta-stepanenko zigzag divider and UAFest rushnyk stripes are not used.
+Differs from every ledger row on ≥4 of 5 axes: flax linen ground (no row), Fixel + Fira Mono (no row), garnet thread accent (red family shared only with rows that differ on all other axes), counted-grid signature with procedural motifs (no row), steps() stitch-in motion (no row). The zigzag divider and the rushnyk stripes used by other portfolio sites are not used here.
 
 ## Forbidden here
 Any border-radius (the only radius is 0) · any box-shadow or glow · any gradient · glassmorphism · flag blue+yellow, tryzub or flag glyphs as decoration · zigzag dividers and rushnyk stripes-behind-object · feTurbulence grain · opacity+translateY fade-ups, parallax zoom · spring/bounce easing · pill chips, rounded buttons, tinted icon squares · serif type anywhere · icon sets and emoji (only drawn stitch marks, → and inline SVG) · chart grid as full-page wallpaper · centered hero + 3 icon cards + stat row · uniform bordered card grid · hover translateY(−2px) · mono uppercase eyebrows as wallpaper · fabricated thread counts, DMC numbers or regions · pure #000/#FFF · a dark theme toggle.
@@ -201,3 +201,17 @@ Same КАНВА tokens, no new direction. What changed and why:
   named tax lines, one red "Open your order" button, no images.
 - **Icons.** The footer's cross-stitch alphabet, "UA" in thread-red-lit on the ink plate with the
   minor grid (`tools/brand_assets.py`).
+
+---
+
+## Concierge and PayPal (October 2026)
+
+An extension of «КАНВА», like the operator screens: same tokens, zero radius, no new colour, so no ledger row.
+
+- **The drawer** opens from a fixed ink-plate tab (one red cross stitch, "Ask the concierge") and slides in from the right in 160ms. Width four blocks on desktop, the full screen on a phone. Head on `--ink-plate`: the title in Fixel Display 600 and the spending limit as a dashed mono field. Body on `--linen-bleached`.
+- **A conversation is a cut list.** Each turn is a row with a dashed `--count-major` rule above it: who on the left in mono (`you` muted, `concierge` in thread red), what on the right. List items are marked with a mono red ×. No chat bubbles, no avatars.
+- **The trace** under every answer prints the shop tools the agent called, in the chart-key voice (`searched the catalogue · read a product · priced a bag`); a refused call turns mustard with "(refused)". It is how the agent shows its work.
+- **Thinking** is a running stitch: a 2px dashed line drawn with `steps(8)`; reduced motion shows the words only. New answers stitch in with the existing `stitch-across` clip.
+- **Cards** reuse the receipt: products as 56px photo rows with the price cell inverting to ink on hover; the bag card is a cut list with one ghost button; the checkout card is the receipt with named taxes, the ship-to line in mono, the terms checkbox and the PayPal button; a paid card gets the 3px `--thread-green` left stitch.
+- **The PayPal button is PayPal's own mark** (JS SDK v6 web component: gold, rounded). It is the one rounded and gold thing in the shop on purpose: buyers recognise it, and the chart around it stays square.
+- **PayPal desk** in `/admin` follows ЗВОРОТ: the same cut-list conversation on a bleached sheet, quick questions as ghost buttons, and each proposed change as an ink `adm-next` slab whose button is red only for a refund.
