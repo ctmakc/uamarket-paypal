@@ -5,7 +5,7 @@ export const ADMIN_LANG_COOKIE = "uam_admin_lang";
 const en = {
   brand: "UA Market",
   admin: "Admin",
-  nav: { orders: "Orders", products: "Products", makers: "Makers", stock: "Stock", locker: "Locker", import: "Import" },
+  nav: { orders: "Orders", products: "Products", makers: "Makers", stock: "Stock", locker: "Locker", import: "Import", paypal: "PayPal desk" },
   langSwitch: "Українською",
   signOut: "Sign out",
   login: {
@@ -84,7 +84,7 @@ const en = {
     notePlaceholder: "A call, a refund made, anything worth keeping",
     cancel: { title: "Cancel this order", note: "Reason (kept on the order)", button: "Cancel order", confirm: "Cancel the order? Paid orders open a refund reminder." },
     demo: "Demo order: no money should move for it.",
-    method: { STRIPE: "Card", ETRANSFER: "Interac e-Transfer", INVOICE: "Invoice" } as Record<string, string>,
+    method: { PAYPAL: "PayPal", STRIPE: "Card", ETRANSFER: "Interac e-Transfer", INVOICE: "Invoice" } as Record<string, string>,
     history: {
       placed: "Placed", paid: "Paid", email: "Email", scan: "Scanned", problem: "Problem", resolved: "Resolved",
       cancel: "Cancelled", handCheck: (sku: string, qty: string, who: string) => `Checked by hand, no scan: ${sku} ×${qty} (confirmed by ${who})`,
@@ -189,7 +189,7 @@ export type AdminDict = typeof en;
 const uk: AdminDict = {
   brand: "UA Market",
   admin: "Адмінка",
-  nav: { orders: "Замовлення", products: "Товари", makers: "Майстри", stock: "Склад", locker: "Локер", import: "Імпорт" },
+  nav: { orders: "Замовлення", products: "Товари", makers: "Майстри", stock: "Склад", locker: "Локер", import: "Імпорт", paypal: "PayPal" },
   langSwitch: "English",
   signOut: "Вийти",
   login: {
@@ -268,7 +268,7 @@ const uk: AdminDict = {
     notePlaceholder: "Дзвінок, повернення коштів, усе, що варто зберегти",
     cancel: { title: "Скасувати замовлення", note: "Причина (зберігається в замовленні)", button: "Скасувати замовлення", confirm: "Скасувати замовлення? Для оплачених з'явиться нагадування про повернення коштів." },
     demo: "Демо-замовлення: гроші за нього не мають рухатися.",
-    method: { STRIPE: "Картка", ETRANSFER: "Interac e-Transfer", INVOICE: "Рахунок" },
+    method: { PAYPAL: "PayPal", STRIPE: "Картка", ETRANSFER: "Interac e-Transfer", INVOICE: "Рахунок" },
     history: {
       placed: "Оформлено", paid: "Оплачено", email: "Лист", scan: "Скановано", problem: "Проблема", resolved: "Закрито",
       cancel: "Скасовано", handCheck: (sku: string, qty: string, who: string) => `Перевірено вручну, без сканування: ${sku} ×${qty} (підтвердив ${who})`,

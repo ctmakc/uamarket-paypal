@@ -209,3 +209,14 @@ a.adm-row:hover { background: var(--linen-shade); }
 @media (prefers-reduced-motion: reduce) {
   .adm *, .adm *::before, .adm *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------------------------------------------------------------- PayPal desk */
+.adm-desk { display: grid; gap: calc(var(--st) * 2); max-width: 980px; }
+.adm-desk__quick { flex-wrap: wrap; gap: var(--st); }
+.adm-desk__quick .btn { min-height: 44px; font-size: var(--fs-ui); }
+.adm-desk__log { background: var(--linen-bleached); padding: 0 calc(var(--st) * 2); }
+.adm-desk__log:empty { display: none; }
+.adm-desk__log .cg-row:first-child { border-top: 0; }
+.adm-desk__action { margin-top: 6px; }
+.adm-desk__ask { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--st); align-items: end; }
+.adm-desk__ask .btn { min-height: 48px; }

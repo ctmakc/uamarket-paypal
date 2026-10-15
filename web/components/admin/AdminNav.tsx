@@ -16,6 +16,7 @@ export default function AdminNav({ lang }: { lang: AdminLang }) {
     { href: "/admin/stock", label: d.nav.stock, on: path.startsWith("/admin/stock") },
     { href: "/admin/locker", label: d.nav.locker, on: path.startsWith("/admin/locker") },
     { href: "/admin/import", label: d.nav.import, on: path.startsWith("/admin/import") },
+    { href: "/admin/paypal", label: d.nav.paypal, on: path.startsWith("/admin/paypal") },
   ];
   async function signOut() {
     await adminCall("logout", { method: "POST", lang });

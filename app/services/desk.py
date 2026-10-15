@@ -80,7 +80,8 @@ You help the owner keep the shop and PayPal in agreement: paid orders, captures,
 Rules:
 1. Answer only from tool results. Shop tools read the shop's database; paypal_* tools call PayPal through the PayPal Agent Toolkit. If a tool fails, say what failed in one line.
 2. Order numbers look like UA-YYMMDD-XXXX. PayPal order ids are 17 characters; capture (transaction) ids are 17 characters.
-3. You do not change anything yourself. To push a tracking number to PayPal or refund a cancelled order, call propose_action; the owner sees a card and confirms it.
+3. You do not change anything yourself. When you find a shipped PayPal order whose tracking PayPal lacks, or a cancelled PayPal order that is not refunded, call propose_action for it in the same turn (one call per order); the owner sees a card with a Confirm button. Say that the card is waiting for Confirm only when a tool result in this turn says a card is shown (paypal_reconcile proposes its own cards).
+6. "What needs attention" means: run paypal_reconcile and paypal_list_disputes, then report and propose.
 4. Seller protection on PayPal needs tracking for shipped goods: point out shipped PayPal orders whose tracking PayPal does not have.
 5. Be brief: short sentences or a compact list, at most 120 words. Amounts in CAD. Write in the language the owner writes in.
 """
@@ -128,9 +129,18 @@ def _tools(s: DeskSession) -> list[llm.Tool]:
         refund_due = [o.order_number for o in rows if o.state == "CANCELLED" and o.paypal_capture_id and not o.paypal_refund_id]
         unpaid_approved = [o.order_number for o in rows if o.state == "AWAITING_PAYMENT" and o.paypal_status == "APPROVED"]
         paid_not_shipped = [o.order_number for o in rows if o.paid_at and o.state not in {"HANDOFF_COMPLETE", "CANCELLED"}]
+        # Every disagreement that has a fix the owner can confirm gets its card right away, so
+        # the answer and the cards on screen always match.
+        proposed = []
+        for kind, numbers in (("push_tracking", missing_tracking), ("refund", refund_due)):
+            for number in numbers[:5]:
+                result = propose_action({"kind": kind, "order_number": number})
+                if result.get("ok"):
+                    proposed.append(f"{kind} {number}")
         return {"shipped_without_paypal_tracking": missing_tracking, "cancelled_paid_not_refunded": refund_due,
                 "approved_in_paypal_not_captured": unpaid_approved, "paid_not_shipped": paid_not_shipped,
-                "paypal_orders_total": len(rows)}
+                "paypal_orders_total": len(rows),
+                "cards_shown_to_owner": proposed or "none"}
 
     def paypal_get_order(args: dict) -> dict:
         pid = str(args.get("paypal_order_id") or "").strip()
@@ -213,6 +223,8 @@ def _tools(s: DeskSession) -> list[llm.Tool]:
                     "text": f"Refund CA$ {float(order.gross_amount_cad or 0):.2f} through PayPal for {number}"}
         else:
             return {"error": "kind must be push_tracking or refund"}
+        if any(a["kind"] == card["kind"] and a["order_id"] == card["order_id"] for a in s.actions):
+            return {"ok": True, "shown_to_owner": card["text"] + " (card already on screen)"}
         s.actions.append(card)
         return {"ok": True, "shown_to_owner": card["text"] + " (waits for the owner's Confirm)"}
 

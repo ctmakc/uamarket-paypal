@@ -21,6 +21,9 @@ http://{$SHOP_DOMAIN} {
 		-Server
 	}
 
+	handle /webhooks/paypal {
+		reverse_proxy app:8000
+	}
 	handle /webhooks/stripe {
 		reverse_proxy app:8000
 	}

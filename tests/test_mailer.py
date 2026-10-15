@@ -171,7 +171,7 @@ def test_disabled_shop_says_so_in_its_config_and_records_the_skip(tmp_path, monk
     # count of codes it forgot rides along with the mail counts.
     assert client.post("/v1/notifications/order-mail").json() == {
         "email": False, "considered": 0, "sent": 0, "skipped": 0, "failed": 0,
-        "pickup_codes_forgotten": 0, "holds_released": 0,
+        "pickup_codes_forgotten": 0, "holds_released": 0, "paypal_tracking_pushed": 0,
     }
 
 
@@ -403,7 +403,7 @@ def test_handoff_email_comes_from_the_sweep(shop, transport):
 
     counts = shop.post("/v1/notifications/order-mail").json()
     assert counts == {"email": True, "considered": 1, "sent": 1, "skipped": 0, "failed": 0,
-                      "pickup_codes_forgotten": 0, "holds_released": 0}
+                      "pickup_codes_forgotten": 0, "holds_released": 0, "paypal_tracking_pushed": 0}
     assert len(transport.messages) == 3
     assert "with the courier" in transport.body()
     assert order["order_number"] in transport.last["Subject"]

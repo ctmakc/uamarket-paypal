@@ -228,7 +228,22 @@ export default function OrderWorkbench({ initial, lang }: { initial: OrderDetail
               <dt>{o.method[order.payment_method || ""] || order.payment_method}</dt>
               <dd>{order.payment.paid_at ? adminTime(order.payment.paid_at) : <span className="adm-status adm-status--wait">{STATE_LABEL.AWAITING_PAYMENT[lang === "uk" ? 1 : 0]}</span>}</dd>
               {order.payment.reference ? (<><dt>Ref</dt><dd className="mono mono--sm">{order.payment.reference}</dd></>) : null}
+              {order.payment.paypal ? (<>
+                <dt>PayPal</dt><dd className="mono mono--sm" data-paypal-order>{order.payment.paypal.order_id || "—"}{order.payment.paypal.sandbox ? " · sandbox" : ""}</dd>
+                <dt>{lang === "uk" ? "Статус" : "Status"}</dt><dd className="mono mono--sm">{order.payment.paypal.status || "—"}</dd>
+                {order.payment.paypal.capture_id ? (<><dt>{lang === "uk" ? "Платіж" : "Capture"}</dt><dd className="mono mono--sm">{order.payment.paypal.capture_id}</dd></>) : null}
+                {order.state === "HANDOFF_COMPLETE" ? (<><dt>{lang === "uk" ? "Трекінг у PayPal" : "Tracking in PayPal"}</dt><dd className="mono mono--sm" data-paypal-tracking>{order.payment.paypal.tracking_id || (lang === "uk" ? "ще ні" : "not yet")}</dd></>) : null}
+                {order.payment.paypal.refund_id ? (<><dt>{lang === "uk" ? "Повернення" : "Refund"}</dt><dd className="mono mono--sm">{order.payment.paypal.refund_id}</dd></>) : null}
+              </>) : null}
             </dl>
+            {order.payment.paypal?.refundable ? (
+              <p><button type="button" className="btn btn--red" disabled={busy} data-paypal-refund
+                onClick={() => act(`v1/admin/orders/${order.id}/paypal/refund`, {})}>{lang === "uk" ? `Повернути ${adminMoney(order.totals.total_cad)} через PayPal` : `Refund ${adminMoney(order.totals.total_cad)} through PayPal`}</button></p>
+            ) : null}
+            {order.payment.paypal?.capture_id && order.state === "HANDOFF_COMPLETE" && !order.payment.paypal.tracking_id ? (
+              <p><button type="button" className="btn btn--ghost" disabled={busy} data-paypal-push-tracking
+                onClick={() => act(`v1/admin/orders/${order.id}/paypal/tracking`, {})}>{lang === "uk" ? "Надіслати трекінг у PayPal" : "Send tracking to PayPal"}</button></p>
+            ) : null}
             {order.demo ? <p className="mono mono--sm muted">{o.demo}</p> : null}
           </section>
           {order.note ? (

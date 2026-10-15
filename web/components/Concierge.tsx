@@ -43,7 +43,7 @@ function load(): { turns: Turn[]; budget: string; orders: string[] } {
 }
 
 /** **bold** and "- " / "1. " list lines; everything else is plain text. */
-function Rich({ text }: { text: string }) {
+export function Rich({ text }: { text: string }) {
   const blocks: React.ReactNode[] = [];
   let list: string[] = [];
   const inline = (s: string, k: string) => s.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>

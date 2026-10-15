@@ -47,7 +47,8 @@ export type OrderDetail = OrderSummary & {
   ship_to: Record<string, string>;
   note: string;
   totals: { subtotal_cad: number | null; shipping_cad: number | null; tax_cad: number | null; tax_rate: number | null; total_cad: number };
-  payment: { method: string | null; reference: string | null; paid_at: string | null; hold_expires_at: string | null };
+  payment: { method: string | null; reference: string | null; paid_at: string | null; hold_expires_at: string | null;
+    paypal?: { order_id: string | null; capture_id: string | null; status: string | null; tracking_id: string | null; refund_id: string | null; sandbox: boolean; refundable: boolean } | null };
   lines: {
     id: string; sku: string | null; barcode: string | null; label: string | null; label_uk: string | null; title: string; title_uk: string | null; product_id: string | null;
     qty: number; unit_price_cad: number; line_total_cad: number; photo: { src: string; srcset: string; alt: string; alt_uk: string } | null;

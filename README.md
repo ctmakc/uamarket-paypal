@@ -7,6 +7,14 @@ One repository, two halves of the same shop.
 | `web/` | **Storefront** — the shop people buy from: catalogue, collections, product pages, makers, bag, checkout, order status, policy pages. English at `/`, Ukrainian at `/uk`. Design system «КАНВА» is written down in `web/DESIGN.md`. | Next.js 16, TypeScript, self-hosted Fixel + Fira Mono |
 | `app/`, `edge/` | **Fulfillment core** — WMS/OMS with an append-only inventory ledger, anti-oversell reservations, barcode picking, packing, EasyPost labels, order email, and the courier locker in the garage driven over Modbus by an edge daemon with an exactly-once journal. It also serves the public catalogue and order API the storefront reads. | FastAPI, SQLAlchemy, Alembic, SQLite → PostgreSQL |
 
+## PayPal + AI (PayPal AI Hackathon, October–November 2026)
+
+- **PayPal checkout**: PayPal JS SDK v6 button on checkout, order page and in the concierge; Orders v2 on the server (priced from the database, capture checked to the cent, verified webhooks, tracking sent to PayPal after shipping, refunds for cancelled orders). `app/services/paypal.py`, `web/components/PayPalButton.tsx`.
+- **Shopping concierge**: an AI agent on every storefront page that searches the real catalogue, keeps to the buyer's spending limit and prepares a PayPal checkout card. The buyer ticks the terms and approves in PayPal; the agent cannot place or pay an order. `app/services/concierge.py`, `web/components/Concierge.tsx`.
+- **PayPal desk** in `/admin`: an agent over the **PayPal Agent Toolkit** that compares the shop with PayPal and proposes refunds and tracking pushes the owner confirms. `app/services/desk.py`, `web/components/admin/PayPalDesk.tsx`.
+
+How it works, the guard rails, how to run it with your own sandbox app, and what changed during the hackathon: **`docs/PAYPAL-AI.md`**. Hosted demo (sandbox, demonstration catalogue): https://uamarket-paypal.agintent.com
+
 Before touching anything customer-facing, read **`docs/OWNER-ACTIONS.md`**: the decisions only the owner can make before opening, each with the setting it fills and what the shop does while it is empty, plus the defaults the software runs on. Deploying: **`docs/LAUNCH-RUNBOOK.md`** (one page). Locker decisions: `docs/locker-owner-actions.md`.
 
 ## Run everything
@@ -117,6 +125,7 @@ Filters are URL state, so a filtered view can be shared and indexed: collection,
 | `SHOP_TAX_MODE` | `unregistered` (no tax line), `gst_hst_registered` (GST or HST by delivery province as named lines, plus `SHOP_PST_REGISTERED_PROVINCES`; rates in `app/services/tax.py`), or `custom` with `TAX_RATES_JSON`. `SHOP_GST_NUMBER` prints on the order page and in emails |
 | `SHOP_SHIP_EXCLUDE_PROVINCES` | provinces the shop does not ship to; default `QC` while there is no French storefront, stated on the shipping page and refused at checkout |
 | `ETRANSFER_EMAIL` | offers Interac e-Transfer with the order number as the message |
+| `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV`, `PAYPAL_WEBHOOK_ID` | offers PayPal (first in the list); `sandbox` moves test money only |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | offers card payment through Stripe Checkout |
 | `SMTP_HOST`, `MAIL_FROM` | turns order email on; without them the shop stops promising email |
 
