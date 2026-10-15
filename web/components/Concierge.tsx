@@ -17,7 +17,7 @@ import { money } from "@/lib/api";
 import { bag, idempotencyKey } from "@/lib/bag";
 import type { Lang } from "@/lib/i18n";
 import { href, pick } from "@/lib/i18n";
-import { tp } from "@/lib/i18n.paypal";
+import { paidAfterAll, tp } from "@/lib/i18n.paypal";
 
 type Turn = {
   role: "user" | "assistant";
@@ -313,7 +313,9 @@ function CheckoutCard({ card, lang, paypal, turn, onPaid }: { card: Extract<Agen
     });
     const body = await res.json().catch(() => ({}));
     setNote(null);
-    if (!res.ok) { setError(body?.code === "declined" ? pp.declined : pp.failed); return; }
+    if (!res.ok && !(body?.code !== "declined" && await paidAfterAll(placed.current!))) {
+      setError(body?.code === "declined" ? pp.declined : pp.failed); return;
+    }
     onPaid(placed.current!);
   }
 

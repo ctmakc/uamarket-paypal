@@ -402,7 +402,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 def paypal_open(order_number: str, request: Request, email: str | None = None,
                 x_order_token: str | None = Header(default=None), db: Session = Depends(get_db)):
     """Create (or reuse) the PayPal order for this unpaid PAYPAL order: {id, status, approve_url}."""
-    if not order_limiter.allow(client_address(request)):
+    # The order key is already proof; this limiter is the lookup one (60 per 10 min), so a buyer
+    # who places, opens PayPal and captures is never stopped by the order-placing cap.
+    if not lookup_limiter.allow(client_address(request)):
         raise HTTPException(429, {"code": "rate_limited", "message": "Too many attempts"})
     try:
         order = _customer_order(db, order_number, x_order_token, email)
@@ -421,7 +423,7 @@ def paypal_open(order_number: str, request: Request, email: str | None = None,
 def paypal_capture(order_number: str, inp: PayPalCaptureIn, request: Request, email: str | None = None,
                    x_order_token: str | None = Header(default=None), db: Session = Depends(get_db)):
     """Capture the payment the buyer approved in PayPal. The order is paid only on an exact match."""
-    if not order_limiter.allow(client_address(request)):
+    if not lookup_limiter.allow(client_address(request)):
         raise HTTPException(429, {"code": "rate_limited", "message": "Too many attempts"})
     try:
         order = _customer_order(db, order_number, x_order_token, email)

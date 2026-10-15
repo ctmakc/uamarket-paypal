@@ -29,3 +29,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ number: string
     return NextResponse.json({ code: "error", message: "Cancel failed" }, { status: 502 });
   }
 }
+
+/** Where the order stands (the PayPal button asks after a capture it could not confirm itself). */
+export async function GET(req: Request, ctx: { params: Promise<{ number: string }> }) {
+  const { number } = await ctx.params;
+  const jar = await cookies();
+  const key = plausibleKey(jar.get(orderCookieName(number))?.value);
+  if (!key) return NextResponse.json({ code: "not_found", message: "Order not found" }, { status: 404 });
+  try {
+    const { access_token: _t, ...view } = await api.order(number, key, visitorFrom(req.headers));
+    return NextResponse.json({ order_number: view.order_number, paid_at: view.paid_at, status: view.status });
+  } catch (e) {
+    if (e instanceof ApiError) return NextResponse.json({ code: e.code, message: e.message }, { status: e.status });
+    return NextResponse.json({ code: "error", message: "Order lookup failed" }, { status: 502 });
+  }
+}

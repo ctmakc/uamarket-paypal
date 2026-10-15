@@ -105,3 +105,19 @@ const uk: typeof en = {
 export function tp(lang: Lang) {
   return lang === "uk" ? uk : en;
 }
+
+/**
+ * After a capture call that failed (network, rate limit), the payment may still have gone
+ * through: PayPal's CHECKOUT.ORDER.APPROVED webhook makes the server capture by itself. Ask the
+ * order a few times before telling the buyer anything failed.
+ */
+export async function paidAfterAll(orderNumber: string, tries = 4): Promise<boolean> {
+  for (let i = 0; i < tries; i += 1) {
+    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      const res = await fetch(`/api/order/${encodeURIComponent(orderNumber)}`, { cache: "no-store" });
+      if (res.ok && (await res.json())?.paid_at) return true;
+    } catch { /* keep asking */ }
+  }
+  return false;
+}

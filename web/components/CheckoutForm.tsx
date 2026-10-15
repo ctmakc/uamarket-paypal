@@ -12,7 +12,7 @@ import { tb } from "@/lib/i18n.buy";
 import { mailNotice, tm } from "@/lib/i18n.mail";
 import { to } from "@/lib/i18n.order";
 import { pickupOption } from "@/lib/i18n.pickup";
-import { tp } from "@/lib/i18n.paypal";
+import { paidAfterAll, tp } from "@/lib/i18n.paypal";
 import PayPalButton from "@/components/PayPalButton";
 
 type Method = "SHIP" | "PICKUP";
@@ -174,7 +174,7 @@ export default function CheckoutForm({ lang, config, shipLabel, demo }: {
     });
     const body = await res.json().catch(() => ({}));
     setNotice(null);
-    if (!res.ok) {
+    if (!res.ok && !(body?.code !== "declined" && await paidAfterAll(order.order_number))) {
       setBusy(false);
       setError(body?.code === "declined" ? pp.declined : pp.failed);
       setAttempt((n) => n + 1);
