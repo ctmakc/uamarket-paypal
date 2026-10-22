@@ -1,7 +1,9 @@
 """One OpenAI-compatible chat-completions client with a tool loop, for both shop agents.
 
 The provider is configuration: AI_BASE_URL (default Ollama Cloud, https://ollama.com/v1),
-AI_API_KEY, AI_MODEL (default gpt-oss:120b). Any server that speaks /chat/completions with
+AI_API_KEY, AI_MODEL (default gpt-oss:120b). AI_FALLBACK_MODEL takes the last try; with
+AI_FALLBACK_BASE_URL (+ AI_FALLBACK_API_KEY) that last try goes to a second provider, so the
+shop keeps answering when the first one's usage allowance runs out. Any server that speaks /chat/completions with
 `tools` works: a local Ollama, vLLM, OpenAI, Gemini's OpenAI endpoint.
 
 The model never touches money or the database directly. It asks for tools by name; the
@@ -70,6 +72,27 @@ def fallback_model() -> str:
     return (os.getenv("AI_FALLBACK_MODEL") or "").strip()
 
 
+def fallback_base_url() -> str:
+    return (os.getenv("AI_FALLBACK_BASE_URL") or "").strip().rstrip("/")
+
+
+def fallback_api_key() -> str:
+    return (os.getenv("AI_FALLBACK_API_KEY") or "").strip()
+
+
+def _plan() -> list[tuple[str, str, str]]:
+    """(model, base url, key) for each try: the main model twice, then the fallback."""
+    main = (model(), base_url(), api_key())
+    if fallback_base_url():
+        return [main, main, (fallback_model() or model(), fallback_base_url(), fallback_api_key())]
+    return [main, main, (fallback_model() or model(), base_url(), api_key())]
+
+
+def _allowance_used_up(resp: httpx.Response) -> bool:
+    """A 429 that names a usage limit will not clear in seconds; retrying it only adds wait."""
+    return resp.status_code == 429 and "usage limit" in resp.text.lower()
+
+
 def call_timeout() -> float:
     try:
         return max(5.0, float(os.getenv("AI_CALL_TIMEOUT_SECONDS") or 40))
@@ -80,27 +103,39 @@ def call_timeout() -> float:
 def _complete(messages: list[dict], tools: list[Tool], *, temperature: float) -> dict:
     """One completion. A hosted model sometimes stalls for minutes; each try is capped and the
     last try goes to AI_FALLBACK_MODEL when one is set, so a buyer waits seconds, not minutes."""
-    headers = {"Content-Type": "application/json"}
-    if api_key():
-        headers["Authorization"] = f"Bearer {api_key()}"
-    plan = [model(), model()] + ([fallback_model()] if fallback_model() else [model()])
+    plan = _plan()
     last = None
-    for attempt, name in enumerate(plan):
+    attempt = 0
+    while attempt < len(plan):
+        name, url, key = plan[attempt]
+        headers = {"Content-Type": "application/json"}
+        if key:
+            headers["Authorization"] = f"Bearer {key}"
         body = {"model": name, "messages": messages, "temperature": temperature}
         if tools:
             body["tools"] = [t.schema() for t in tools]
         try:
             with httpx.Client(timeout=call_timeout(), transport=TRANSPORT) as http:
-                resp = http.post(f"{base_url()}/chat/completions", json=body, headers=headers)
+                resp = http.post(f"{url}/chat/completions", json=body, headers=headers)
         except httpx.HTTPError as exc:
             last = f"{exc.__class__.__name__}"
             log.warning("model %s try %d failed: %s", name, attempt + 1, last)
             time.sleep(0.5)
+            attempt += 1
             continue
         if resp.status_code in {429, 500, 502, 503, 504}:
             last = f"HTTP {resp.status_code}"
             log.warning("model %s try %d failed: %s", name, attempt + 1, last)
+            if _allowance_used_up(resp):
+                last = "usage allowance used up"
+                # skip the remaining tries on this provider and go straight to the next one
+                nxt = next((i for i in range(attempt + 1, len(plan)) if plan[i][1] != url), None)
+                if nxt is None:
+                    break
+                attempt = nxt
+                continue
             time.sleep(1.0 * (attempt + 1))
+            attempt += 1
             continue
         if resp.status_code >= 300:
             raise LLMError(f"The language model refused the request (HTTP {resp.status_code})")
@@ -109,6 +144,9 @@ def _complete(messages: list[dict], tools: list[Tool], *, temperature: float) ->
         if not choices:
             raise LLMError("The language model returned no answer")
         return choices[0].get("message") or {}
+    if last == "usage allowance used up":
+        raise LLMError("The shop assistant has used up its model allowance for now; "
+                       "browse the shop and pay with PayPal from the bag, or try the assistant later")
     raise LLMError(f"The language model could not be reached ({last})")
 
 

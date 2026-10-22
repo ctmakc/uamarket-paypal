@@ -90,6 +90,10 @@ buyer ── PayPal button (JS SDK v6, web component) ──┐ click
 - Model: any OpenAI-compatible `/chat/completions` endpoint with tool calling
   (`app/services/llm.py`). The hosted demo uses **gpt-oss:120b on Ollama Cloud**. A local Ollama
   (`qwen3:30b`) works with `AI_BASE_URL=http://localhost:11434/v1`.
+- Usage limits: the last try of each model call goes to `AI_FALLBACK_MODEL`, on a second provider
+  when `AI_FALLBACK_BASE_URL` is set. A 429 that reports a used-up usage limit skips the remaining
+  tries on that provider. With no second provider the concierge says the assistant has used up its
+  model allowance; browsing, the bag and PayPal checkout keep working without it.
 - PayPal Agent Toolkit: `paypal-agent-toolkit` 1.11.0 (Python). The desk uses its framework-free
   `PayPalAPI.run(method, params)` with the shop's sandbox credentials, so tool names and payloads are
   PayPal's own. It is installed with `--no-deps` (Dockerfile) because only the shared module is used.

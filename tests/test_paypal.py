@@ -23,7 +23,7 @@ from app.services.storefront import ConfigurationError
 SHOP_ENV = (
     "PAYMENT_PROVIDER", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "ETRANSFER_EMAIL", "SHOP_CONTACT_EMAIL",
     "SHOP_CATALOGUE_STATUS", "WEB_INDEXABLE", "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_ENV", "PAYPAL_WEBHOOK_ID",
-    "AI_API_KEY", "AI_BASE_URL", "AI_MODEL",
+    "AI_API_KEY", "AI_BASE_URL", "AI_MODEL", "AI_FALLBACK_MODEL", "AI_FALLBACK_BASE_URL", "AI_FALLBACK_API_KEY",
 )
 BUYER = "buyer@example.test"
 
@@ -441,3 +441,44 @@ def test_desk_proposes_and_does_not_act(shop, pp, monkeypatch):
     assert order["order_number"] in recon["cancelled_paid_not_refunded"]
     assert out["actions"][0]["kind"] == "refund" and out["actions"][0]["order_id"] == o.id
     assert not [1 for m, p, b in pp.requests if p.endswith("/refund")]  # proposing moved no money
+
+
+def _used_up_then(second):
+    seen = []
+
+    def model(request: httpx.Request) -> httpx.Response:
+        seen.append((str(request.url), json.loads(request.content)["model"], request.headers.get("authorization")))
+        if request.url.host == "first.test":
+            return httpx.Response(429, json={"error": {"message": "you have reached your weekly usage limit"}})
+        return second(request)
+    return model, seen
+
+
+def test_used_up_allowance_goes_straight_to_the_second_provider(monkeypatch):
+    model, seen = _used_up_then(lambda r: httpx.Response(200, json={"choices": [{"message": {"role": "assistant", "content": "Hi"}}]}))
+    monkeypatch.setattr(llm, "TRANSPORT", httpx.MockTransport(model))
+    monkeypatch.setattr(llm.time, "sleep", lambda s: None)
+    monkeypatch.setenv("AI_BASE_URL", "https://first.test/v1")
+    monkeypatch.setenv("AI_API_KEY", "k1")
+    monkeypatch.setenv("AI_FALLBACK_BASE_URL", "https://second.test/v1")
+    monkeypatch.setenv("AI_FALLBACK_API_KEY", "k2")
+    monkeypatch.setenv("AI_FALLBACK_MODEL", "other-model")
+    assert llm._complete([{"role": "user", "content": "hi"}], [], temperature=0)["content"] == "Hi"
+    assert [(u.split("/")[2], m, a) for u, m, a in seen] == [
+        ("first.test", "gpt-oss:120b", "Bearer k1"), ("second.test", "other-model", "Bearer k2")]
+
+
+def test_used_up_allowance_without_a_second_provider_says_so_in_plain_words(monkeypatch):
+    model, seen = _used_up_then(lambda r: httpx.Response(500))
+    monkeypatch.setattr(llm, "TRANSPORT", httpx.MockTransport(model))
+    monkeypatch.setattr(llm.time, "sleep", lambda s: None)
+    monkeypatch.setenv("AI_BASE_URL", "https://first.test/v1")
+    monkeypatch.setenv("AI_API_KEY", "k1")
+    monkeypatch.delenv("AI_FALLBACK_BASE_URL", raising=False)
+    monkeypatch.setenv("AI_FALLBACK_MODEL", "gpt-oss:20b")
+    try:
+        llm._complete([{"role": "user", "content": "hi"}], [], temperature=0)
+        raise AssertionError("expected LLMError")
+    except llm.LLMError as exc:
+        assert "used up its model allowance" in str(exc)
+    assert len(seen) == 1
