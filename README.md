@@ -12,7 +12,7 @@ One repository, two halves of the same shop.
 | | |
 |---|---|
 | Hosted demo (PayPal sandbox, demonstration catalogue) | https://uamarket-paypal.agintent.com |
-| Demo video (YouTube, under 3 minutes) | https://www.youtube.com/watch?v=65JEalaobLs |
+| Demo video (YouTube, 2:13) | https://www.youtube.com/watch?v=8yqY0BbP614 |
 | Devpost | https://devpost.com/software/ua-market-ai-concierge-paypal-checkout |
 | Code | https://github.com/ctmakc/uamarket-paypal (MIT, see `LICENSE`) |
 | Deep dive | `docs/PAYPAL-AI.md` |
