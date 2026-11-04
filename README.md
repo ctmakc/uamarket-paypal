@@ -7,13 +7,46 @@ One repository, two halves of the same shop.
 | `web/` | **Storefront** — the shop people buy from: catalogue, collections, product pages, makers, bag, checkout, order status, policy pages. English at `/`, Ukrainian at `/uk`. Design system «КАНВА» is written down in `web/DESIGN.md`. | Next.js 16, TypeScript, self-hosted Fixel + Fira Mono |
 | `app/`, `edge/` | **Fulfillment core** — WMS/OMS with an append-only inventory ledger, anti-oversell reservations, barcode picking, packing, EasyPost labels, order email, and the courier locker in the garage driven over Modbus by an edge daemon with an exactly-once journal. It also serves the public catalogue and order API the storefront reads. | FastAPI, SQLAlchemy, Alembic, SQLite → PostgreSQL |
 
-## PayPal + AI (PayPal AI Hackathon, October–November 2026)
+## For PayPal AI Hackathon judges
+
+| | |
+|---|---|
+| Hosted demo (PayPal sandbox, demonstration catalogue) | https://uamarket-paypal.agintent.com |
+| Demo video (YouTube, under 3 minutes) | https://www.youtube.com/watch?v=65JEalaobLs |
+| Devpost | https://devpost.com/software/ua-market-ai-concierge-paypal-checkout |
+| Code | https://github.com/ctmakc/uamarket-paypal (MIT, see `LICENSE`) |
+| Deep dive | `docs/PAYPAL-AI.md` |
+
+**Try it in two minutes.** Open the demo, press **Ask the concierge** in the lower right corner and set a spending limit (for example 150). Ask for a gift ("a birthday gift for my mom in Toronto, she loves embroidery"), pick a piece and a size, give a name, an email and a Canadian address (test data is fine). The concierge answers with a checkout card: goods, shipping, the province's tax, the total. Tick the terms, press **Pay with PayPal** and sign in with a PayPal **sandbox** personal account (the Devpost testing instructions list one; every developer.paypal.com account also has its own under Testing Tools → Sandbox Accounts). The card turns into **Paid** with a link to the order page. Only test money moves.
+
+## How PayPal and AI are used
 
 - **PayPal checkout**: PayPal JS SDK v6 button on checkout, order page and in the concierge; Orders v2 on the server (priced from the database, capture checked to the cent, verified webhooks, tracking sent to PayPal after shipping, refunds for cancelled orders). `app/services/paypal.py`, `web/components/PayPalButton.tsx`.
 - **Shopping concierge**: an AI agent on every storefront page that searches the real catalogue, keeps to the buyer's spending limit and prepares a PayPal checkout card. The buyer ticks the terms and approves in PayPal; the agent cannot place or pay an order. `app/services/concierge.py`, `web/components/Concierge.tsx`.
 - **PayPal desk** in `/admin`: an agent over the **PayPal Agent Toolkit** that compares the shop with PayPal and proposes refunds and tracking pushes the owner confirms. `app/services/desk.py`, `web/components/admin/PayPalDesk.tsx`.
 
-How it works, the guard rails, how to run it with your own sandbox app, and what changed during the hackathon: **`docs/PAYPAL-AI.md`**. Hosted demo (sandbox, demonstration catalogue): https://uamarket-paypal.agintent.com
+- **AI model**: any OpenAI-compatible `/chat/completions` endpoint with tool calling (`app/services/llm.py`); the hosted demo runs gpt-oss:120b on Ollama Cloud, a local Ollama works too. The model picks SKUs and quantities; prices, shipping, tax and the spending limit are decided by the shop's code.
+
+How it works, the guard rails and what changed during the hackathon: **`docs/PAYPAL-AI.md`**. The hackathon work starts after the baseline commit (the shop on 17 September 2026: storefront, fulfilment, Stripe and e-Transfer, no PayPal, no AI).
+
+## How to run the PayPal + AI build
+
+You need a free PayPal sandbox app (https://developer.paypal.com/dashboard/applications/sandbox → Create App, Merchant; tick **Transaction search** for the desk) and an OpenAI-compatible model with tool calling (an Ollama Cloud key, or a local Ollama).
+
+```bash
+git clone https://github.com/ctmakc/uamarket-paypal && cd uamarket-paypal
+cp .env.example .env
+# fill PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET (PAYPAL_ENV=sandbox), AI_API_KEY or AI_BASE_URL,
+# ADMIN_API_KEY=<any long string>, and the two lines printed by: python3 tools/admin_password_hash.py
+docker compose up --build
+curl -X POST -H "x-api-key: $ADMIN_API_KEY" http://localhost:8000/admin/seed-catalog
+```
+
+Storefront http://localhost:3000 (press **Ask the concierge**); admin http://localhost:3000/admin (**PayPal desk** in the top bar). Pay with any sandbox personal account from your developer dashboard. Tests without any keys: `pytest tests/test_paypal.py` (mock PayPal, scripted model), the whole suite `pytest -q`.
+
+## License
+
+MIT, see `LICENSE`.
 
 Before touching anything customer-facing, read **`docs/OWNER-ACTIONS.md`**: the decisions only the owner can make before opening, each with the setting it fills and what the shop does while it is empty, plus the defaults the software runs on. Deploying: **`docs/LAUNCH-RUNBOOK.md`** (one page). Locker decisions: `docs/locker-owner-actions.md`.
 

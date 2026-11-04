@@ -125,7 +125,7 @@ Without Docker: see the main README ("Without Docker"); add the PayPal and AI va
 API's environment.
 
 Tests: `pytest tests/test_paypal.py` runs the PayPal flow against a mock PayPal and the agents
-against a scripted model (20 tests); the whole backend suite is `pytest -q`.
+against a scripted model (22 tests); the whole backend suite is `pytest -q`.
 
 ## Hosted demo
 
